@@ -1,0 +1,204 @@
+import { getPool } from "@/lib/db";
+
+export type FeedPost = {
+  id: number;
+  user_id: number | null;
+  pet_id: number | null;
+  type: string;
+  title: string;
+  description: string;
+  species: string;
+  photo_path: string | null;
+  media_type: string | null;
+  location_text: string | null;
+  location_lat: number | string | null;
+  location_lng: number | string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  status: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+  author_name: string | null;
+  pet_name: string | null;
+  pet_sex: string | null;
+  pet_breed: string | null;
+  pet_photo_path: string | null;
+  pet_slug: string | null;
+  pet_last_seen_text: string | null;
+  pet_last_seen_notes: string | null;
+  pet_last_seen_at: Date | string | null;
+  like_count: number;
+  comment_count: number;
+  share_count: number;
+};
+
+export type AlertFeedFilters = {
+  type?: string;
+  species?: string;
+  sex?: string;
+  sort?: string;
+  within?: string;
+  nearLat?: number;
+  nearLng?: number;
+  /** Radius in miles from nearLat/nearLng */
+  radiusMiles?: number;
+  limit?: number;
+};
+
+function withinMonths(within?: string): number | null {
+  switch (within) {
+    case "1m":
+      return 1;
+    case "3m":
+      return 3;
+    case "6m":
+      return 6;
+    case "1y":
+      return 12;
+    default:
+      return null;
+  }
+}
+
+/** Approx miles between two lat/lng points (Haversine), for SQL. */
+const HAVERSINE_MILES = `(
+  3958.8 * ACOS(
+    LEAST(1, GREATEST(-1,
+      COS(RADIANS(?)) * COS(RADIANS(COALESCE(posts.location_lat, pets.last_seen_lat)))
+      * COS(RADIANS(COALESCE(posts.location_lng, pets.last_seen_lng)) - RADIANS(?))
+      + SIN(RADIANS(?)) * SIN(RADIANS(COALESCE(posts.location_lat, pets.last_seen_lat)))
+    ))
+  )
+)`;
+
+export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPost[]> {
+  const type = opts.type && opts.type !== "all" ? opts.type : null;
+  const limit = opts.limit ?? 40;
+  const pool = getPool();
+  const isAlert =
+    type === "missing" || type === "found" || type === "resolved";
+
+  let sql = `
+    SELECT
+      posts.id, posts.user_id, posts.pet_id, posts.type, posts.title, posts.description, posts.species,
+      posts.photo_path, posts.media_type, posts.location_text,
+      posts.location_lat, posts.location_lng,
+      posts.contact_name, posts.contact_phone, posts.contact_email,
+      posts.status, posts.created_at, posts.updated_at,
+      users.name AS author_name,
+      pets.name AS pet_name,
+      pets.sex AS pet_sex,
+      pets.breed AS pet_breed,
+      pets.photo_path AS pet_photo_path,
+      pets.public_slug AS pet_slug,
+      pets.last_seen_text AS pet_last_seen_text,
+      pets.last_seen_notes AS pet_last_seen_notes,
+      pets.last_seen_at AS pet_last_seen_at,
+      COALESCE(lc.like_count, 0) AS like_count,
+      COALESCE(cc.comment_count, 0) AS comment_count,
+      COALESCE(posts.share_count, 0) AS share_count
+    FROM posts
+    LEFT JOIN users ON users.id = posts.user_id
+    LEFT JOIN pets ON pets.id = posts.pet_id
+    LEFT JOIN (
+      SELECT post_id, COUNT(*) AS like_count FROM post_likes GROUP BY post_id
+    ) lc ON lc.post_id = posts.id
+    LEFT JOIN (
+      SELECT post_id, COUNT(*) AS comment_count FROM post_comments GROUP BY post_id
+    ) cc ON cc.post_id = posts.id
+  `;
+  const params: unknown[] = [];
+  const where: string[] = [];
+
+  if (type === "resolved") {
+    where.push(`posts.status = 'resolved' AND posts.type IN ('missing', 'found')`);
+  } else if (type === "missing" || type === "found") {
+    where.push(`posts.type = ? AND posts.status = 'open'`);
+    params.push(type);
+  } else if (type) {
+    where.push(`posts.type = ? AND posts.status = 'open'`);
+    params.push(type);
+  } else {
+    where.push(`posts.status = 'open'`);
+  }
+
+  if (isAlert) {
+    const species = (opts.species || "").trim();
+    if (species && species.toLowerCase() !== "all") {
+      where.push(`LOWER(COALESCE(pets.species, posts.species)) = LOWER(?)`);
+      params.push(species);
+    }
+
+    const sex = (opts.sex || "").trim().toLowerCase();
+    if (sex && sex !== "all") {
+      where.push(`LOWER(COALESCE(pets.sex, 'unknown')) = ?`);
+      params.push(sex);
+    }
+
+    const months = withinMonths(opts.within);
+    if (months) {
+      where.push(`posts.created_at >= DATE_SUB(NOW(), INTERVAL ? MONTH)`);
+      params.push(months);
+    }
+
+    const radius = opts.radiusMiles != null && opts.radiusMiles > 0 ? opts.radiusMiles : null;
+    if (radius != null && opts.nearLat != null && opts.nearLng != null) {
+      where.push(`COALESCE(posts.location_lat, pets.last_seen_lat) IS NOT NULL`);
+      where.push(`COALESCE(posts.location_lng, pets.last_seen_lng) IS NOT NULL`);
+      where.push(`${HAVERSINE_MILES} <= ?`);
+      params.push(opts.nearLat, opts.nearLng, opts.nearLat, radius);
+    }
+  }
+
+  if (where.length) {
+    sql += ` WHERE ${where.join(" AND ")}`;
+  }
+
+  const sort = (opts.sort || "updated").toLowerCase();
+  if (isAlert && sort === "nearest" && opts.nearLat != null && opts.nearLng != null) {
+    sql += ` ORDER BY
+      CASE
+        WHEN COALESCE(posts.location_lat, pets.last_seen_lat) IS NULL THEN 1
+        ELSE 0
+      END ASC,
+      ${HAVERSINE_MILES} ASC,
+      posts.updated_at DESC`;
+    params.push(opts.nearLat, opts.nearLng, opts.nearLat);
+  } else if (isAlert && sort === "posted") {
+    sql += ` ORDER BY posts.created_at DESC`;
+  } else if (isAlert) {
+    sql += ` ORDER BY posts.updated_at DESC`;
+  } else {
+    sql += ` ORDER BY posts.created_at DESC`;
+  }
+
+  sql += ` LIMIT ${Number(limit)}`;
+
+  const [rows] = await pool.query(sql, params);
+  return rows as FeedPost[];
+}
+
+export async function getPostById(id: number) {
+  const pool = getPool();
+  const [rows] = await pool.query(
+    `SELECT
+      posts.*,
+      users.name AS author_name,
+      pets.name AS pet_name,
+      pets.photo_path AS pet_photo_path,
+      pets.sex AS pet_sex,
+      pets.last_seen_text AS pet_last_seen_text,
+      pets.last_seen_at AS pet_last_seen_at,
+      pets.last_seen_media_path,
+      pets.last_seen_media_type
+     FROM posts
+     LEFT JOIN users ON users.id = posts.user_id
+     LEFT JOIN pets ON pets.id = posts.pet_id
+     WHERE posts.id = ?
+     LIMIT 1`,
+    [id],
+  );
+  const list = rows as Record<string, unknown>[];
+  return list[0] ?? null;
+}

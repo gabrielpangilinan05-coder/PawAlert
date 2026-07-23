@@ -1,0 +1,7 @@
+USE pawalert;
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS address VARCHAR(255) DEFAULT NULL AFTER messenger;
+
+ALTER TABLE pets
+    ADD COLUMN IF NOT EXISTS show_address TINYINT(1) NOT NULL DEFAULT 0 AFTER show_messenger;
