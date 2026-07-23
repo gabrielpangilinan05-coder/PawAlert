@@ -11,6 +11,9 @@ CREATE TABLE users (
     address_lat DECIMAL(10,7) DEFAULT NULL,
     address_lng DECIMAL(10,7) DEFAULT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    role ENUM('user','admin') NOT NULL DEFAULT 'user',
+    banned_at DATETIME DEFAULT NULL,
+    ban_reason VARCHAR(255) DEFAULT NULL,
     email_verified_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -86,12 +89,32 @@ CREATE TABLE posts (
     contact_email VARCHAR(190) DEFAULT NULL,
     status ENUM('open','resolved') NOT NULL DEFAULT 'open',
     share_count INT UNSIGNED NOT NULL DEFAULT 0,
+    hidden_at DATETIME DEFAULT NULL,
+    hidden_reason VARCHAR(255) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_posts_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     CONSTRAINT fk_posts_pet FOREIGN KEY (pet_id) REFERENCES pets(id) ON DELETE SET NULL,
     INDEX idx_posts_type_status (type, status),
-    INDEX idx_posts_created (created_at)
+    INDEX idx_posts_created (created_at),
+    INDEX idx_posts_hidden (hidden_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE reports (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    reporter_id INT UNSIGNED DEFAULT NULL,
+    target_type ENUM('post','user') NOT NULL,
+    target_id INT UNSIGNED NOT NULL,
+    reason VARCHAR(255) NOT NULL,
+    details TEXT DEFAULT NULL,
+    status ENUM('open','resolved','dismissed') NOT NULL DEFAULT 'open',
+    resolved_by INT UNSIGNED DEFAULT NULL,
+    resolved_at DATETIME DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_reports_status (status, created_at),
+    INDEX idx_reports_target (target_type, target_id),
+    CONSTRAINT fk_reports_reporter FOREIGN KEY (reporter_id) REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT fk_reports_resolver FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE post_likes (
@@ -137,4 +160,21 @@ CREATE TABLE messages (
     CONSTRAINT fk_messages_receiver FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_messages_pair (sender_id, receiver_id, created_at),
     INDEX idx_messages_inbox (receiver_id, read_at, created_at)
+) ENGINE=InnoDB;
+
+CREATE TABLE notifications (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    actor_id INT UNSIGNED DEFAULT NULL,
+    type ENUM('comment','message','share') NOT NULL,
+    title VARCHAR(160) NOT NULL,
+    body VARCHAR(500) DEFAULT NULL,
+    link VARCHAR(255) NOT NULL,
+    post_id INT UNSIGNED DEFAULT NULL,
+    read_at DATETIME DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_notifications_actor FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_notifications_inbox (user_id, read_at, created_at),
+    INDEX idx_notifications_user_created (user_id, created_at)
 ) ENGINE=InnoDB;

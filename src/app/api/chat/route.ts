@@ -6,6 +6,7 @@ import {
   threadMessages,
   unreadMessageCount,
 } from "@/lib/messages";
+import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function GET(req: Request) {
   const user = await getCurrentUser();
@@ -33,6 +34,9 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ ok: false, error: "login_required" }, { status: 401 });
   }
+
+  const limited = rateLimit(`chat:${user.id}`, LIMITS.write);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
 
   const form = await req.formData().catch(() => null);
   const bodyJson = form ? null : await req.json().catch(() => ({}));

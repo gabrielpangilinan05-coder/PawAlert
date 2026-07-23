@@ -15,7 +15,7 @@ export default async function CreatePostPage({
 
   return (
     <div className="page-wrap">
-      <div className="panel" style={{ maxWidth: 560 }}>
+      <div className="panel create-panel">
         <h1>Create a post</h1>
         <p className="muted">
           Share a story, tip, question, or Found / Missing alert with the community.

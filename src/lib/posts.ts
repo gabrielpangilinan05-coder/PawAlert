@@ -109,7 +109,7 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
     ) cc ON cc.post_id = posts.id
   `;
   const params: unknown[] = [];
-  const where: string[] = [];
+  const where: string[] = [`posts.hidden_at IS NULL`];
 
   if (type === "resolved") {
     where.push(`posts.status = 'resolved' AND posts.type IN ('missing', 'found')`);
@@ -179,8 +179,9 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
   return rows as FeedPost[];
 }
 
-export async function getPostById(id: number) {
+export async function getPostById(id: number, opts?: { includeHidden?: boolean }) {
   const pool = getPool();
+  const hiddenClause = opts?.includeHidden ? "" : "AND posts.hidden_at IS NULL";
   const [rows] = await pool.query(
     `SELECT
       posts.*,
@@ -195,7 +196,7 @@ export async function getPostById(id: number) {
      FROM posts
      LEFT JOIN users ON users.id = posts.user_id
      LEFT JOIN pets ON pets.id = posts.pet_id
-     WHERE posts.id = ?
+     WHERE posts.id = ? ${hiddenClause}
      LIMIT 1`,
     [id],
   );

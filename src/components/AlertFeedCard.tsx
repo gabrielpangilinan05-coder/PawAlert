@@ -10,9 +10,9 @@ import {
 } from "@/components/ShareAlertDialog";
 
 function formatDate(value: Date | string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "";
   const d = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
@@ -32,17 +32,23 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
   const shareDetails = useMemo(() => shareDetailsFromFeedPost(post), [post]);
 
   const isMissing = post.type === "missing";
-  const statusLabel = post.status === "resolved" ? "REUNITED" : isMissing ? "LOST" : "FOUND";
-  const bannerLabel = isMissing ? "MISSING ALERT" : "FOUND ALERT";
+  const isResolved = post.status === "resolved";
+  const statusLabel = isResolved ? "REUNITED" : isMissing ? "LOST" : "FOUND";
+  const bannerLabel = isResolved
+    ? "REUNITED"
+    : isMissing
+      ? "MISSING ALERT"
+      : "FOUND ALERT";
+  const cardTone = isResolved ? "is-reunited" : isMissing ? "is-missing" : "is-found";
 
   const photo =
     mediaUrl(post.photo_path) || mediaUrl(post.pet_photo_path) || "/icons/icon-512.png";
   const name = post.pet_name || post.title.replace(/\s+is missing$/i, "") || "Unknown pet";
   const species = post.species || "Pet";
-  const location = post.pet_last_seen_text || post.location_text || "—";
+  const locationRaw = (post.pet_last_seen_text || post.location_text || "").trim();
   const when = formatDate(post.pet_last_seen_at || post.created_at);
-  const notes = post.pet_last_seen_notes || null;
-  const message = post.description?.trim() || null;
+  const notes = post.pet_last_seen_notes?.trim() || "";
+  const message = post.description?.trim() || "";
   const lat = toNum(post.location_lat);
   const lng = toNum(post.location_lng);
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
@@ -56,29 +62,33 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
   const rows: { label: string; value: ReactNode }[] = [
     {
       label: "Status",
-      value: <span className={`alert-status-pill alert-status-pill--${statusLabel.toLowerCase()}`}>{statusLabel}</span>,
+      value: (
+        <span className={`alert-status-pill alert-status-pill--${statusLabel.toLowerCase()}`}>
+          {statusLabel}
+        </span>
+      ),
     },
-    { label: isMissing ? "Date Last Seen" : "Date Posted", value: when },
-    { label: isMissing ? "Location Last Seen" : "Location", value: location },
+    { label: isMissing ? "Last seen" : "Posted", value: when },
+    { label: isMissing ? "Last seen at" : "Location", value: locationRaw },
     { label: "Name", value: name },
     { label: "Sex", value: formatSex(post.pet_sex) },
-    { label: "Alert ID", value: String(post.id) },
     { label: "Species", value: [species, post.pet_breed].filter(Boolean).join(" · ") },
+    { label: "Alert ID", value: `#${post.id}` },
   ];
 
-  if (notes) {
-    rows.push({ label: "Description", value: notes });
-  }
+  if (notes) rows.push({ label: "Notes", value: notes });
+  if (message) rows.push({ label: "Message", value: message });
 
-  if (message) {
-    rows.push({ label: "Message", value: message });
-  }
+  const visibleRows = rows.filter((row) => {
+    if (typeof row.value === "string") return row.value.trim().length > 0;
+    return row.value != null;
+  });
 
   return (
-    <article className={`alert-feed-card${isMissing ? " is-missing" : " is-found"}`} id={`post-${post.id}`}>
+    <article className={`alert-feed-card ${cardTone}`} id={`post-${post.id}`}>
       <div className="alert-feed-card__media">
         <div className="alert-feed-card__banner">
-          <span aria-hidden>📢</span>
+          <span aria-hidden>{isResolved ? "✓" : "📢"}</span>
           {bannerLabel}
         </div>
         <div className="alert-feed-card__photo-wrap">
@@ -111,12 +121,12 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
             className="alert-feed-card__btn alert-feed-card__btn--fb"
             onClick={() => setShareOpen(true)}
           >
-            Share on Facebook
+            Share
           </button>
         </div>
 
         <dl className="alert-feed-card__table">
-          {rows.map((row) => (
+          {visibleRows.map((row) => (
             <div key={row.label} className="alert-feed-card__row">
               <dt>{row.label}</dt>
               <dd>{row.value}</dd>

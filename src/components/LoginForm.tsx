@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -63,6 +64,9 @@ export function LoginForm() {
           </button>
         </div>
       </label>
+      <p className="muted" style={{ marginTop: "-0.35rem", textAlign: "right" }}>
+        <Link href="/forgot-password">Forgot password?</Link>
+      </p>
       <button className="btn btn-amber" type="submit" disabled={loading}>
         {loading ? "Signing in…" : "Log in"}
       </button>

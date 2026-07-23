@@ -6,6 +6,7 @@ import { getSession } from "@/lib/session";
 import { createSmsOtp } from "@/lib/otp";
 import { normalizePhMobile } from "@/lib/phone";
 import { sendSms } from "@/lib/sms";
+import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   name: z.string().min(1),
@@ -24,6 +25,9 @@ function smsDevPreview(): boolean {
 }
 
 export async function POST(req: Request) {
+  const limited = rateLimit(`register:${clientIp(req)}`, LIMITS.authRegister);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
+
   try {
     const body = schema.parse(await req.json());
     if (body.password !== body.passwordConfirm) {

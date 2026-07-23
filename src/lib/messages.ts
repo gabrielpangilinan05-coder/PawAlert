@@ -120,5 +120,14 @@ export async function sendMessage(
   );
   const msg = (rows as ChatMessage[])[0];
   if (!msg) throw new Error("Could not send message.");
+
+  const { notifyNewMessage } = await import("@/lib/notifications");
+  await notifyNewMessage({
+    receiverId,
+    senderId,
+    senderName: msg.sender_name,
+    excerpt: text.slice(0, 140),
+  });
+
   return { ...msg, created_at: String(msg.created_at) };
 }

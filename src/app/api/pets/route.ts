@@ -2,12 +2,16 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPool } from "@/lib/db";
 import { generateSlug, normalizeSex, normalizeSpecies, saveMultipleMedia } from "@/lib/upload";
+import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "login_required" }, { status: 401 });
   }
+
+  const limited = rateLimit(`pet:${user.id}`, LIMITS.create);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
 
   try {
     const form = await req.formData();

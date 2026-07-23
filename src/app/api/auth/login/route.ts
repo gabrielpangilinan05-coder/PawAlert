@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
+import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
@@ -10,17 +11,26 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  const limited = rateLimit(`login:${clientIp(req)}`, LIMITS.authLogin);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
+
   try {
     const body = schema.parse(await req.json());
     const email = body.email.trim().toLowerCase();
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT id, password_hash FROM users WHERE email = ? LIMIT 1`,
+      `SELECT id, password_hash, banned_at FROM users WHERE email = ? LIMIT 1`,
       [email],
     );
-    const user = (rows as { id: number; password_hash: string }[])[0];
+    const user = (rows as { id: number; password_hash: string; banned_at: Date | null }[])[0];
     if (!user || !(await bcrypt.compare(body.password, user.password_hash))) {
       return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
+    }
+    if (user.banned_at) {
+      return NextResponse.json(
+        { error: "This account has been suspended. Contact support if you think this is a mistake." },
+        { status: 403 },
+      );
     }
     const session = await getSession();
     session.userId = user.id;

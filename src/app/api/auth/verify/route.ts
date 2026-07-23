@@ -3,12 +3,16 @@ import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { verifySmsOtp } from "@/lib/otp";
+import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   code: z.string().regex(/^\d{6}$/),
 });
 
 export async function POST(req: Request) {
+  const limited = rateLimit(`verify:${clientIp(req)}`, LIMITS.authVerify);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
+
   try {
     const body = schema.parse(await req.json());
     const session = await getSession();

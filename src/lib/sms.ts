@@ -11,9 +11,14 @@ export async function sendSms(phone09: string, message: string): Promise<SmsSend
   const apiKey = process.env.SEMAPHORE_API_KEY?.trim();
   const sender = process.env.SEMAPHORE_SENDER?.trim() || "PawAlert";
 
-  if (!apiKey || smsDevMode()) {
+  if (smsDevMode()) {
     console.info(`[sms:dev] to=${phone09} message=${message}`);
     return { ok: true, mode: "dev" };
+  }
+
+  if (!apiKey) {
+    console.error("[sms] SMS_DEV_MODE=false but SEMAPHORE_API_KEY is missing");
+    return { ok: false, error: "SMS is not configured. Add SEMAPHORE_API_KEY on the server." };
   }
 
   try {

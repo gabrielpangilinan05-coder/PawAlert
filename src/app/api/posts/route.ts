@@ -2,9 +2,16 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPool } from "@/lib/db";
 import { isAlertType, normalizeSpecies, saveMediaFile } from "@/lib/upload";
+import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
+  const limited = rateLimit(
+    user ? `post:u:${user.id}` : `post:ip:${clientIp(req)}`,
+    LIMITS.create,
+  );
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
+
   try {
     const form = await req.formData();
     const type = String(form.get("type") || "story");

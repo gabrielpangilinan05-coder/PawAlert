@@ -65,6 +65,7 @@ export function SocialCard({
   const [comments, setComments] = useState(Number(post.comment_count));
   const [shares, setShares] = useState(Number(post.share_count || 0));
   const [busy, setBusy] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareRecorded, setShareRecorded] = useState(false);
@@ -138,6 +139,42 @@ export function SocialCard({
     }
   }
 
+  async function reportPost() {
+    if (!loggedIn) {
+      router.push("/login");
+      return;
+    }
+    const reason = window.prompt(
+      "Report reason: spam, harassment, scam, inappropriate, misinformation, or other",
+      "spam",
+    );
+    if (!reason) return;
+    const details = window.prompt("Optional details:") || "";
+    setReportBusy(true);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target_type: "post",
+          target_id: post.id,
+          reason: reason.trim().toLowerCase(),
+          details,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        window.alert(data.error || "Could not submit report.");
+        return;
+      }
+      window.alert("Thanks — moderators will review this post.");
+    } catch {
+      window.alert("Could not submit report.");
+    } finally {
+      setReportBusy(false);
+    }
+  }
+
   return (
     <article className="social-card" id={`post-${post.id}`}>
       <header className="social-card-head">
@@ -182,11 +219,17 @@ export function SocialCard({
       ) : null}
 
       <div className="social-stats">
-        <span>{likes} likes</span>
+        <span>
+          {likes} {likes === 1 ? "like" : "likes"}
+        </span>
         <button type="button" className="link-plain" onClick={openComments}>
-          {comments} comments
+          {comments} {comments === 1 ? "comment" : "comments"}
         </button>
-        {shares > 0 ? <span className="muted">{shares} shares</span> : null}
+        {shares > 0 ? (
+          <span className="muted">
+            {shares} {shares === 1 ? "share" : "shares"}
+          </span>
+        ) : null}
       </div>
 
       <div className="social-actions">
@@ -211,6 +254,14 @@ export function SocialCard({
         <button type="button" className="social-action social-action--notif" onClick={openShare}>
           <span>Share</span>
           <NotifBadge count={shareUnseen.unread} label={`${shareUnseen.unread} new shares`} />
+        </button>
+        <button
+          type="button"
+          className="social-action social-action--report"
+          onClick={reportPost}
+          disabled={reportBusy}
+        >
+          Report
         </button>
       </div>
 

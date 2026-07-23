@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LikeCommentBar } from "@/components/LikeCommentBar";
+import { PostPhotoZoom } from "@/components/PostPhotoZoom";
+import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
 import { getPostById } from "@/lib/posts";
 import { postLikeCount, userLikedPost } from "@/lib/social";
@@ -12,7 +14,8 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const post = await getPostById(Number(id));
+  const admin = await getAdminUser();
+  const post = await getPostById(Number(id), { includeHidden: Boolean(admin) });
   if (!post) return { title: "Post" };
   return {
     title: String(post.title),
@@ -29,12 +32,14 @@ export default async function PostPage({
   const postId = Number(id);
   if (!Number.isFinite(postId) || postId < 1) notFound();
 
-  const post = await getPostById(postId);
+  const admin = await getAdminUser();
+  const post = await getPostById(postId, { includeHidden: Boolean(admin) });
   if (!post) notFound();
 
   const user = await getCurrentUser();
   const liked = await userLikedPost(postId, user?.id ?? null);
   const likes = await postLikeCount(postId);
+  const isHidden = Boolean(post.hidden_at);
 
   const pool = getPool();
   const [countRows] = await pool.query(
@@ -48,57 +53,93 @@ export default async function PostPage({
     mediaUrl(post.pet_photo_path as string | null) ||
     "/icons/icon-512.png";
 
-  const statusLabel =
-    post.status === "resolved"
-      ? "REUNITED"
-      : post.type === "found"
-        ? "FOUND"
-        : post.type === "missing"
-          ? "LOST"
-          : String(post.type).toUpperCase();
+  const isMissing = post.type === "missing" && post.status !== "resolved";
+  const isFound = post.type === "found" && post.status !== "resolved";
+  const isResolved = post.status === "resolved";
+
+  const statusLabel = isResolved
+    ? "REUNITED"
+    : isFound
+      ? "FOUND"
+      : isMissing
+        ? "LOST"
+        : String(post.type).toUpperCase();
+
+  const badgeClass = isResolved
+    ? "resolved"
+    : isFound
+      ? "found"
+      : isMissing
+        ? "missing"
+        : String(post.type);
 
   return (
     <div className="page-wrap alert-detail">
-      <p>
-        <Link href="/feed">← Back to feed</Link>
+      <p className="alert-detail__back">
+        <Link href={admin ? "/admin?tab=posts" : "/feed"}>
+          {admin ? "← Back to admin" : "← Back to feed"}
+        </Link>
       </p>
-      <div className="alert-photo">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo!} alt={String(post.title)} />
-      </div>
-      <div>
-        <span className={`badge badge-${post.status === "resolved" ? "resolved" : post.type}`}>
-          {statusLabel}
-        </span>
-        <h1 style={{ fontFamily: "var(--font-display)", margin: "0.5rem 0" }}>{String(post.title)}</h1>
-        <p className="muted">
-          {String(post.author_name || "Guest")}
-          {post.location_text ? ` · ${String(post.location_text)}` : ""}
+
+      {isHidden && admin ? (
+        <p className="alert-urgent">
+          Hidden from the public feed
+          {post.hidden_reason ? ` — ${String(post.hidden_reason)}` : ""}.{" "}
+          <Link href="/admin?tab=posts">Manage in admin</Link>
         </p>
-        <p style={{ whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{String(post.description)}</p>
-        {Boolean(post.contact_phone || post.contact_email) && (
-          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", marginTop: "1rem" }}>
-            {post.contact_phone ? (
-              <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
-                Call
-              </a>
-            ) : null}
-            {post.contact_email ? (
-              <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
-                Email
-              </a>
-            ) : null}
-          </div>
-        )}
+      ) : null}
+
+      <div className="alert-hero">
+        <PostPhotoZoom src={photo!} alt={String(post.title)} />
+
+        <div className="alert-hero-copy">
+          <span className={`badge badge-${badgeClass}`}>{statusLabel}</span>
+          <h1 className="alert-name">{String(post.title)}</h1>
+          <p className="alert-kind">
+            {String(post.author_name || "Guest")}
+            {post.location_text ? ` · ${String(post.location_text)}` : ""}
+            {post.species ? ` · ${String(post.species)}` : ""}
+          </p>
+
+          {isMissing ? (
+            <p className="alert-urgent">
+              Missing alert — contact the poster if you have information.
+            </p>
+          ) : null}
+          {isResolved ? (
+            <p className="pp-banner pp-banner--safe" style={{ marginTop: "0.35rem" }}>
+              Reunited — this alert is closed.
+            </p>
+          ) : null}
+
+          <p className="alert-body">{String(post.description)}</p>
+
+          {Boolean(post.contact_phone || post.contact_email) ? (
+            <div className="alert-contact-actions">
+              {post.contact_phone ? (
+                <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
+                  Call
+                </a>
+              ) : null}
+              {post.contact_email ? (
+                <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
+                  Email
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      <LikeCommentBar
-        postId={postId}
-        initialLiked={liked}
-        initialLikeCount={likes}
-        initialCommentCount={commentCount}
-        loggedIn={Boolean(user)}
-      />
+      <div className="alert-detail__engage">
+        <LikeCommentBar
+          postId={postId}
+          initialLiked={liked}
+          initialLikeCount={likes}
+          initialCommentCount={commentCount}
+          loggedIn={Boolean(user)}
+        />
+      </div>
     </div>
   );
 }

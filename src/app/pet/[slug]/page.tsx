@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { mediaUrl } from "@/lib/auth";
 import { getPool } from "@/lib/db";
-import { requestOrigin } from "@/lib/media";
+import { mediaUrl, requestOrigin } from "@/lib/media";
 import { buildPetOgDescription, formatDisplayDatetime, truncateText } from "@/lib/og-pet";
 import { getPetByPublicSlug } from "@/lib/pets-public";
+import { PetQrScanButton } from "@/components/PetQrScanButton";
+import { PetPublicMedia } from "@/components/PetPublicMedia";
 
 export async function generateMetadata({
   params,
@@ -18,7 +19,6 @@ export async function generateMetadata({
   const name = String(pet.name);
   const status = String(pet.status);
   const description = buildPetOgDescription(pet);
-  // Put key place in title so Facebook card shows something even when description is hidden
   const place =
     status === "missing" && pet.last_seen_text
       ? truncateText(String(pet.last_seen_text).split(",")[0] || String(pet.last_seen_text), 40)
@@ -32,7 +32,6 @@ export async function generateMetadata({
 
   const origin = await requestOrigin();
   const url = `${origin}/pet/${slug}`;
-  // New path + bust from pet update — Facebook cannot reuse old /opengraph-image cache
   const bust = new Date(String(pet.updated_at || pet.last_seen_at || Date.now())).getTime() || Date.now();
   const image = `${origin}/api/og/pet/${encodeURIComponent(slug)}?v=${bust}`;
 
@@ -103,206 +102,146 @@ export default async function PetPublicPage({
     showAddress && pet.owner_address ? String(pet.owner_address) : null;
 
   const hasContact = Boolean(ownerName || ownerPhone || ownerEmail || ownerMessenger || ownerAddress);
+  const mapHref =
+    pet.last_seen_lat != null && pet.last_seen_lng != null
+      ? `https://www.openstreetmap.org/?mlat=${pet.last_seen_lat}&mlon=${pet.last_seen_lng}#map=16/${pet.last_seen_lat}/${pet.last_seen_lng}`
+      : null;
+
+  const hasStickyContact = Boolean(ownerPhone || ownerEmail || ownerMessenger);
 
   return (
-    <div className="page-wrap alert-detail">
-      <div className="alert-hero">
-        <div className="alert-photo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={photo} alt={String(pet.name)} />
-        </div>
-        <div className="alert-hero-copy">
-          <span className={`badge badge-${isMissing ? "missing" : "safe"}`}>
-            {String(pet.status).toUpperCase()}
-          </span>
-          <h1 className="alert-name">{String(pet.name)}</h1>
-          <p className="muted alert-kind">
+    <div className={`page-wrap pp${hasStickyContact ? " pp--sticky" : ""}`}>
+      <article className="pp-stage">
+        <PetPublicMedia
+          petName={String(pet.name)}
+          coverSrc={photo}
+          statusLabel={isMissing ? "LOST" : "SAFE"}
+          statusClass={isMissing ? "missing" : "safe"}
+          media={media}
+          lastSeenSrc={lastSeenMedia}
+          lastSeenType={
+            pet.last_seen_media_type ? String(pet.last_seen_media_type) : null
+          }
+        />
+
+        <div className="pp-panel">
+          <p className="pp-kicker">PawAlert profile</p>
+          <h1 className="pp-name">{String(pet.name)}</h1>
+          <p className="pp-kind">
             {String(pet.species)}
             {pet.breed ? ` · ${String(pet.breed)}` : ""}
             {` · ${sexLabel(pet.sex)}`}
           </p>
+
           {isMissing ? (
-            <p className="alert-urgent">This pet is missing. Please contact the owner if you have information.</p>
+            <p className="pp-banner pp-banner--missing">
+              Missing — contact the owner if you have information.
+            </p>
           ) : (
-            <p className="muted">This pet is marked safe on PawAlert.</p>
+            <p className="pp-banner pp-banner--safe">This pet is marked safe.</p>
           )}
-        </div>
-      </div>
 
-      {isMissing ? (
-        <section className="alert-card alert-card--missing">
-          <h2>Last seen</h2>
-          <div className="alert-missing-lines">
-            {pet.last_seen_text ? (
-              <p>
-                <strong>Last seen:</strong> {String(pet.last_seen_text)}
-              </p>
-            ) : null}
-            {pet.last_seen_notes ? (
-              <p>
-                <strong>Details:</strong> {String(pet.last_seen_notes)}
-              </p>
-            ) : null}
-            {when ? (
-              <p>
-                <strong>Date &amp; time:</strong> {when}
-              </p>
-            ) : null}
-            {pet.last_seen_lat != null && pet.last_seen_lng != null ? (
-              <p>
-                <strong>Map:</strong>{" "}
-                <a
-                  href={`https://www.openstreetmap.org/?mlat=${pet.last_seen_lat}&mlon=${pet.last_seen_lng}#map=16/${pet.last_seen_lat}/${pet.last_seen_lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open pin
-                </a>
-              </p>
-            ) : null}
-          </div>
-          {lastSeenMedia ? (
-            <div className="alert-sighting-media">
-              {pet.last_seen_media_type === "video" ? (
-                <video src={lastSeenMedia} controls playsInline />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={lastSeenMedia} alt="Last seen media" />
-              )}
-            </div>
-          ) : null}
-          {!pet.last_seen_text && !when && !pet.last_seen_notes && !lastSeenMedia ? (
-            <p className="muted">No last-seen details have been added yet.</p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <section className="alert-card">
-        <h2>About this pet</h2>
-        <dl className="alert-dl">
-          <div>
-            <dt>Name</dt>
-            <dd>{String(pet.name)}</dd>
-          </div>
-          <div>
-            <dt>Species</dt>
-            <dd>{String(pet.species)}</dd>
-          </div>
-          {pet.breed ? (
-            <div>
-              <dt>Breed</dt>
-              <dd>{String(pet.breed)}</dd>
-            </div>
-          ) : null}
-          <div>
-            <dt>Sex</dt>
-            <dd>{sexLabel(pet.sex)}</dd>
-          </div>
-          {pet.medical_notes ? (
-            <div>
-              <dt>Medical / notes</dt>
-              <dd>{String(pet.medical_notes)}</dd>
-            </div>
-          ) : null}
-        </dl>
-      </section>
-
-      {hasContact ? (
-        <section className="alert-card">
-          <h2>Contact owner</h2>
-          <dl className="alert-dl">
-            {ownerName ? (
-              <div>
-                <dt>Owner</dt>
-                <dd>{ownerName}</dd>
-              </div>
-            ) : null}
-            {ownerPhone ? (
-              <div>
-                <dt>Phone</dt>
-                <dd>
-                  <a href={`tel:${ownerPhone}`}>{ownerPhone}</a>
-                </dd>
-              </div>
-            ) : null}
-            {ownerEmail ? (
-              <div>
-                <dt>Email</dt>
-                <dd>
-                  <a href={`mailto:${ownerEmail}`}>{ownerEmail}</a>
-                </dd>
-              </div>
-            ) : null}
-            {ownerMessenger ? (
-              <div>
-                <dt>Messenger</dt>
-                <dd>
-                  <a
-                    href={`https://m.me/${encodeURIComponent(ownerMessenger)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {ownerMessenger}
-                  </a>
-                </dd>
-              </div>
-            ) : null}
-            {ownerAddress ? (
-              <div>
-                <dt>Home area</dt>
-                <dd>{ownerAddress}</dd>
-              </div>
-            ) : null}
-          </dl>
-          <div className="alert-contact-actions">
-            {ownerPhone ? (
-              <a className="btn btn-amber" href={`tel:${ownerPhone}`}>
-                Call owner
-              </a>
-            ) : null}
-            {ownerEmail ? (
-              <a className="btn btn-outline" href={`mailto:${ownerEmail}`}>
-                Email
-              </a>
-            ) : null}
-            {ownerMessenger ? (
-              <a
-                className="btn btn-outline"
-                href={`https://m.me/${encodeURIComponent(ownerMessenger)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Messenger
-              </a>
-            ) : null}
-          </div>
-        </section>
-      ) : (
-        <section className="alert-card">
-          <h2>Contact owner</h2>
-          <p className="muted">The owner has not shared public contact details for this profile.</p>
-        </section>
-      )}
-
-      {media.length > 0 ? (
-        <section className="alert-card">
-          <h2>Photos &amp; videos</h2>
-          <div className="media-grid media-tiles alert-media-grid">
-            {media.map((m) => {
-              const src = mediaUrl(m.file_path) || undefined;
-              return (
-                <div key={m.id} className="media-tile">
-                  {m.media_type === "video" ? (
-                    <video src={src} controls playsInline preload="metadata" />
+          {isMissing && (pet.last_seen_text || when || pet.last_seen_notes || mapHref) ? (
+            <section className="pp-block">
+              <h2>Last seen</h2>
+              <ul className="pp-list">
+                {pet.last_seen_text ? <li>{String(pet.last_seen_text)}</li> : null}
+                {when ? <li>{when}</li> : null}
+                {pet.last_seen_notes ? <li>{String(pet.last_seen_notes)}</li> : null}
+                {mapHref ? (
+                  <li>
+                    <a href={mapHref} target="_blank" rel="noopener noreferrer">
+                      Open map pin
+                    </a>
+                  </li>
+                ) : null}
+              </ul>
+              {lastSeenMedia ? (
+                <div className="pp-sighting">
+                  {pet.last_seen_media_type === "video" ? (
+                    <video src={lastSeenMedia} controls playsInline />
                   ) : (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={src} alt="" />
+                    <img src={lastSeenMedia} alt="Last seen" />
                   )}
                 </div>
-              );
-            })}
+              ) : null}
+            </section>
+          ) : null}
+
+          {pet.medical_notes ? (
+            <section className="pp-block">
+              <h2>Medical notes</h2>
+              <p className="pp-notes">{String(pet.medical_notes)}</p>
+            </section>
+          ) : null}
+
+          <section className="pp-block">
+            <h2>Contact</h2>
+            {hasContact ? (
+              <>
+                <ul className="pp-list">
+                  {ownerName ? <li>Owner: {ownerName}</li> : null}
+                  {ownerAddress ? <li>Area: {ownerAddress}</li> : null}
+                </ul>
+                <div className="pp-actions">
+                  {ownerPhone ? (
+                    <a className="btn btn-amber" href={`tel:${ownerPhone}`}>
+                      Call
+                    </a>
+                  ) : null}
+                  {ownerMessenger ? (
+                    <a
+                      className="btn btn-outline"
+                      href={`https://m.me/${encodeURIComponent(ownerMessenger)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Messenger
+                    </a>
+                  ) : null}
+                  {ownerEmail ? (
+                    <a className="btn btn-outline" href={`mailto:${ownerEmail}`}>
+                      Email
+                    </a>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <p className="muted pp-notes">No public contact details yet.</p>
+            )}
+          </section>
+
+          <div className="pp-scan-row">
+            <p className="muted">Found another collar tag?</p>
+            <PetQrScanButton className="btn btn-outline btn-sm" />
           </div>
-        </section>
+        </div>
+      </article>
+
+      {hasStickyContact ? (
+        <div className="pp-sticky" aria-label="Quick contact">
+          {ownerPhone ? (
+            <a className="btn btn-amber" href={`tel:${ownerPhone}`}>
+              Call owner
+            </a>
+          ) : null}
+          {ownerMessenger ? (
+            <a
+              className="btn btn-outline"
+              href={`https://m.me/${encodeURIComponent(ownerMessenger)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Message
+            </a>
+          ) : ownerEmail ? (
+            <a className="btn btn-outline" href={`mailto:${ownerEmail}`}>
+              Email
+            </a>
+          ) : null}
+          <PetQrScanButton className="btn btn-outline" />
+        </div>
       ) : null}
     </div>
   );

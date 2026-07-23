@@ -7,6 +7,7 @@ import type { User } from "@/lib/auth";
 import { petSlugFromQr } from "@/lib/qr-scan";
 import { QrCameraScanner } from "@/components/QrCameraScanner";
 import { NotifBadge } from "@/components/NotifBadge";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function SiteHeader({
   user,
@@ -117,11 +118,15 @@ export function SiteHeader({
         >
           ☰
         </button>
-        <nav className="site-nav">
+        <nav className="site-nav" onClick={(e) => {
+          const t = e.target as HTMLElement;
+          if (t.closest("a") || t.closest("button.linkish")) setNavOpen(false);
+        }}>
           <Link href="/how-it-works">How it Works</Link>
           <Link href="/feed">Feed</Link>
           {user ? (
             <>
+              <NotificationBell />
               <Link href="/messages" className="nav-link-notif">
                 Messages
                 <NotifBadge
@@ -130,6 +135,7 @@ export function SiteHeader({
                 />
               </Link>
               <Link href="/dashboard">Dashboard</Link>
+              {user.role === "admin" ? <Link href="/admin">Admin</Link> : null}
               <Link href="/pets/new">Add Pet</Link>
               <form action="/api/auth/logout" method="post" className="inline">
                 <button type="submit" className="nav-muted linkish">

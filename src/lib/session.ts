@@ -13,6 +13,10 @@ export type SessionData = {
     addressLng: number | null;
     passwordHash: string;
   };
+  pendingReset?: {
+    userId: number;
+    phone: string;
+  };
   devOtpPreview?: string;
   flash?: { type: "success" | "error"; message: string };
 };
