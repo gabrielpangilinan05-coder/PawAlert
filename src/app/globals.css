@@ -431,7 +431,7 @@ img {
   inset: 0;
   background:
     linear-gradient(180deg, rgba(20, 32, 24, 0.25) 0%, rgba(20, 32, 24, 0.78) 70%),
-    url("https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1600&q=80")
+    url("/hero.jpg")
       center/cover;
 }
 
