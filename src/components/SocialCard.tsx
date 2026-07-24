@@ -74,13 +74,37 @@ export function SocialCard({
   const shareUnseen = useUnseenCount(`pa-share-${post.id}`, shares);
 
   const author = post.author_name || "Community";
-  const photo = mediaUrl(post.photo_path);
+  const photo =
+    mediaUrl(post.photo_path) ||
+    mediaUrl(post.pet_photo_path) ||
+    (post.type === "missing" || post.type === "found" || post.status === "resolved"
+      ? "/icons/icon-512.png"
+      : null);
   const title = post.title;
   const body = post.description;
   const showTitle = title !== "" && !body.trim().toLowerCase().startsWith(title.toLowerCase());
   const when = relativeTime(post.created_at);
   const meName = currentUserName?.trim() || "friend";
   const shareDetails = useMemo(() => shareDetailsFromFeedPost(post), [post]);
+
+  const isResolved = post.status === "resolved";
+  const isAlert =
+    post.type === "missing" || post.type === "found" || post.type === "resolved" || isResolved;
+  const tone = isResolved
+    ? "is-reunited"
+    : post.type === "missing"
+      ? "is-missing"
+      : post.type === "found"
+        ? "is-found"
+        : "";
+  const location = (post.pet_last_seen_text || post.location_text || "").trim();
+  const petName = post.pet_name?.trim() || null;
+  const contactHref = post.contact_phone
+    ? `tel:${post.contact_phone}`
+    : post.contact_email
+      ? `mailto:${post.contact_email}`
+      : null;
+  const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
 
   async function toggleLike() {
     if (!loggedIn) {
@@ -176,10 +200,13 @@ export function SocialCard({
   }
 
   return (
-    <article className="social-card" id={`post-${post.id}`}>
+    <article
+      className={`social-card${isAlert ? ` social-card--alert ${tone}` : ""}`}
+      id={`post-${post.id}`}
+    >
       <header className="social-card-head">
         <div className="composer-avatar">{userInitial(author)}</div>
-        <div>
+        <div className="social-card-head__meta">
           <strong>
             {post.user_id ? (
               <Link href={`/profile?id=${post.user_id}`}>{author}</Link>
@@ -193,10 +220,30 @@ export function SocialCard({
             </span>
             {" · "}
             {when}
-            {post.location_text ? ` · ${post.location_text}` : ""}
           </div>
         </div>
       </header>
+
+      {isAlert && photo ? (
+        <Link className="social-media social-media--hero" href={profileUrl}>
+          {post.media_type === "video" ? (
+            <video src={photo} muted playsInline />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photo} alt={petName || title || "Pet alert"} />
+          )}
+          <span className="social-media__banner" aria-hidden>
+            {isResolved ? "REUNITED" : post.type === "found" ? "FOUND ALERT" : "MISSING ALERT"}
+          </span>
+        </Link>
+      ) : null}
+
+      {isAlert && (petName || location) ? (
+        <div className="social-alert-meta">
+          {petName ? <span className="social-alert-name">{petName}</span> : null}
+          {location ? <span className="social-loc-chip">{location}</span> : null}
+        </div>
+      ) : null}
 
       {showTitle ? (
         <h3 className="social-title">
@@ -207,7 +254,7 @@ export function SocialCard({
         {excerpt(body)}
       </p>
 
-      {photo ? (
+      {!isAlert && photo ? (
         <Link className="social-media" href={`/post/${post.id}`}>
           {post.media_type === "video" ? (
             <video src={photo} muted playsInline />
@@ -216,6 +263,27 @@ export function SocialCard({
             <img src={photo} alt="" />
           )}
         </Link>
+      ) : null}
+
+      {!isAlert && location ? (
+        <p className="social-loc-inline muted">{location}</p>
+      ) : null}
+
+      {isAlert ? (
+        <div className="social-alert-cta">
+          {contactHref ? (
+            <a className="btn btn-amber" href={contactHref}>
+              Contact owner
+            </a>
+          ) : (
+            <Link className="btn btn-amber" href={profileUrl}>
+              View pet profile
+            </Link>
+          )}
+          <Link className="btn btn-outline" href={`/post/${post.id}`}>
+            Full post
+          </Link>
+        </div>
       ) : null}
 
       <div className="social-stats">

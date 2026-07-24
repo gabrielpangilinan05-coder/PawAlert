@@ -1378,24 +1378,27 @@ textarea {
   }
 }
 
-/* —— Facebook-style community feed (matches PHP feed.php) —— */
+/* —— Community feed —— */
 .feed-page {
-  background: #f4f6f4;
+  background:
+    radial-gradient(900px 420px at 8% -8%, rgba(47, 107, 79, 0.14), transparent 55%),
+    radial-gradient(700px 380px at 100% 0%, rgba(217, 119, 6, 0.1), transparent 50%),
+    linear-gradient(180deg, #f7faf8 0%, #eef5f0 55%, #e8f0ea 100%);
 }
 
 .feed-page .site-header {
-  background: #ffffff;
-  border-bottom-color: #dfe4e0;
-  backdrop-filter: none;
+  background: rgba(247, 250, 248, 0.92);
+  border-bottom-color: var(--line);
+  backdrop-filter: blur(14px);
 }
 
 .feed-page main,
 .feed-page .site-footer {
-  background: #f4f6f4;
+  background: transparent;
 }
 
 .feed-page .site-footer {
-  border-top-color: #dfe4e0;
+  border-top-color: var(--line);
 }
 
 .social-feed-wrap {
@@ -1406,6 +1409,15 @@ textarea {
 
 .feed-head {
   margin-bottom: 1.25rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--leaf) 18%, transparent);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(238, 245, 240, 0.88));
+}
+
+.feed-head__intro .page-title {
+  margin: 0 0 0.25rem;
 }
 
 .feed-head .page-title {
@@ -1443,6 +1455,7 @@ textarea {
   font-size: 0.88rem;
   font-weight: 600;
   white-space: nowrap;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .feed-filters a:hover {
@@ -1454,25 +1467,32 @@ textarea {
   color: var(--leaf-deep);
 }
 
+.composer-block {
+  margin-bottom: 1rem;
+}
+
 .composer-card {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  border: 1px solid #dfe4e0;
-  border-radius: 10px;
+  margin-bottom: 0.65rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--leaf) 16%, #dfe4e0);
+  border-radius: 14px;
   background: #fff;
   text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
   box-sizing: border-box;
+  box-shadow: 0 8px 24px rgba(20, 32, 24, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .composer-card:hover {
-  border-color: #b8c2bb;
+  border-color: color-mix(in srgb, var(--leaf) 40%, #b8c2bb);
+  box-shadow: 0 10px 28px rgba(20, 32, 24, 0.08);
 }
 
 .composer-avatar {
@@ -1494,6 +1514,44 @@ textarea {
   font-size: 0.85rem;
 }
 
+.composer-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0 0.15rem;
+}
+
+.composer-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.composer-chip:hover {
+  border-color: var(--leaf);
+  color: var(--leaf-deep);
+  background: var(--leaf-wash);
+}
+
+.composer-chip--missing {
+  border-color: color-mix(in srgb, var(--alert) 35%, transparent);
+  color: var(--alert);
+  background: var(--alert-soft);
+}
+
+.composer-chip--found {
+  border-color: color-mix(in srgb, var(--leaf) 35%, transparent);
+  color: var(--leaf-deep);
+  background: var(--safe-soft);
+}
+
 .link-plain {
   border: none;
   background: none;
@@ -1510,7 +1568,8 @@ textarea {
 .composer-prompt {
   flex: 1;
   padding: 0.55rem 0.7rem;
-  border-radius: 6px;
+  border-radius: 999px;
+  background: var(--leaf-wash);
   color: #68736b;
   font-weight: 500;
   font-size: 0.95rem;
@@ -1524,8 +1583,28 @@ textarea {
 .social-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 1rem 1.1rem 0.55rem;
+  box-shadow: 0 10px 28px rgba(20, 32, 24, 0.05);
+  animation: feed-card-in 0.45s ease both;
+}
+
+.social-card--alert.is-missing {
+  border-color: color-mix(in srgb, var(--alert) 28%, var(--line));
+  background:
+    linear-gradient(180deg, var(--alert-soft) 0%, #fff 42%);
+}
+
+.social-card--alert.is-found {
+  border-color: color-mix(in srgb, var(--leaf) 28%, var(--line));
+  background:
+    linear-gradient(180deg, var(--safe-soft) 0%, #fff 42%);
+}
+
+.social-card--alert.is-reunited {
+  border-color: color-mix(in srgb, var(--leaf-deep) 22%, var(--line));
+  background:
+    linear-gradient(180deg, #e8f5ee 0%, #fff 42%);
 }
 
 .social-card-head {
@@ -1533,6 +1612,10 @@ textarea {
   gap: 0.7rem;
   align-items: center;
   margin-bottom: 0.75rem;
+}
+
+.social-card-head__meta {
+  min-width: 0;
 }
 
 .social-card-head strong {
@@ -1566,11 +1649,65 @@ textarea {
   line-height: 1.55;
 }
 
+.social-alert-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.65rem 0 0.35rem;
+}
+
+.social-alert-name {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.social-loc-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(20, 32, 24, 0.06);
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.social-loc-inline {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+}
+
+.social-alert-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0.85rem 0 0.35rem;
+}
+
+.social-alert-cta .btn {
+  min-height: 2.35rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.88rem;
+}
+
 .social-media {
+  position: relative;
   display: block;
   margin: 0.75rem -1.1rem 0;
   background: var(--mist);
   overflow: hidden;
+}
+
+.social-media--hero {
+  margin-top: 0.15rem;
+  border-radius: 0;
 }
 
 .social-media img,
@@ -1580,6 +1717,33 @@ textarea {
   object-fit: cover;
   display: block;
   background: #111;
+}
+
+.social-media--hero img,
+.social-media--hero video {
+  max-height: 460px;
+  min-height: 220px;
+}
+
+.social-media__banner {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  background: var(--alert);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.social-card--alert.is-found .social-media__banner {
+  background: var(--leaf);
+}
+
+.social-card--alert.is-reunited .social-media__banner {
+  background: var(--leaf-deep);
 }
 
 .social-card .social-stats {
@@ -1614,6 +1778,12 @@ textarea {
   text-decoration: none;
   display: block;
   min-width: 0;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.social-action.is-liked {
+  color: var(--alert);
+  animation: like-pop 0.35s ease;
 }
 
 .social-action--notif {
@@ -1625,6 +1795,48 @@ textarea {
 
 .social-action--report {
   color: color-mix(in srgb, var(--fog) 85%, var(--alert));
+}
+
+.feed-empty {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: start;
+  padding: 1.5rem 1.25rem;
+  border-radius: 16px;
+  border: 1px dashed color-mix(in srgb, var(--leaf) 30%, var(--line));
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.feed-empty strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.feed-empty .muted {
+  margin: 0;
+}
+
+@keyframes feed-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes like-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 @media (max-width: 420px) {
@@ -3659,6 +3871,22 @@ textarea {
   border-radius: 16px;
   background: var(--surface);
   box-shadow: 0 12px 32px rgba(20, 32, 24, 0.07);
+  animation: feed-card-in 0.45s ease both;
+}
+
+.alert-feed-card.is-missing {
+  border-color: color-mix(in srgb, var(--alert) 30%, var(--line));
+  background: linear-gradient(180deg, var(--alert-soft) 0%, #fff 38%);
+}
+
+.alert-feed-card.is-found {
+  border-color: color-mix(in srgb, var(--leaf) 30%, var(--line));
+  background: linear-gradient(180deg, var(--safe-soft) 0%, #fff 38%);
+}
+
+.alert-feed-card.is-reunited {
+  border-color: color-mix(in srgb, var(--leaf-deep) 24%, var(--line));
+  background: linear-gradient(180deg, #e8f5ee 0%, #fff 38%);
 }
 
 .alert-feed-card__media {

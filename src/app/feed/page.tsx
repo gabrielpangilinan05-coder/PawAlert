@@ -98,12 +98,12 @@ export default async function FeedPage({
       <BodyClass name="feed-page" />
       <div className={`page-wrap social-feed-wrap${isAlert ? " alert-feed-wrap" : ""}`}>
         <div className="dash-head feed-head">
-          <div>
+          <div className="feed-head__intro">
             <h1 className="page-title">{pageTitle}</h1>
             <p className="muted">
               {isAlert
                 ? "Filter by status, location, and distance to find pets that need help."
-                : "Stories, tips, and Found & Missing alerts."}
+                : "Community tips, stories, and urgent Found & Missing alerts near you."}
             </p>
           </div>
           {isAlert ? (
@@ -144,9 +144,14 @@ export default async function FeedPage({
 
             <div className="alert-feed-main">
               {posts.length === 0 ? (
-                <div className="empty">
-                  No alerts match these filters. Try a wider distance, different status, or longer
-                  date range.
+                <div className="feed-empty">
+                  <strong>No alerts match these filters</strong>
+                  <p className="muted">
+                    Try a wider distance, different status, or longer date range — or post an alert.
+                  </p>
+                  <Link className="btn btn-amber" href={createHref}>
+                    Post {createType === "missing" ? "Missing" : "Found"} alert
+                  </Link>
                 </div>
               ) : (
                 <div className="alert-feed-list">
@@ -159,20 +164,44 @@ export default async function FeedPage({
           </div>
         ) : (
           <>
-            {user ? (
-              <Link href="/create" className="composer-card">
-                <div className="composer-avatar">{userInitial(user.name)}</div>
-                <div className="composer-prompt">What&apos;s on your mind, {firstName}?</div>
-              </Link>
-            ) : (
-              <Link href="/login" className="composer-card">
-                <div className="composer-avatar">?</div>
-                <div className="composer-prompt">Log in to share with the community…</div>
-              </Link>
-            )}
+            <div className="composer-block">
+              {user ? (
+                <Link href="/create" className="composer-card">
+                  <div className="composer-avatar">{userInitial(user.name)}</div>
+                  <div className="composer-prompt">
+                    Share a tip or alert, {firstName}…
+                  </div>
+                </Link>
+              ) : (
+                <Link href="/login" className="composer-card">
+                  <div className="composer-avatar">?</div>
+                  <div className="composer-prompt">Log in to share with the community…</div>
+                </Link>
+              )}
+              <div className="composer-chips" aria-label="Quick post types">
+                <Link href="/create?type=missing" className="composer-chip composer-chip--missing">
+                  Missing
+                </Link>
+                <Link href="/create?type=found" className="composer-chip composer-chip--found">
+                  Found
+                </Link>
+                <Link href="/create?type=tip" className="composer-chip">
+                  Tip
+                </Link>
+                <Link href="/create?type=story" className="composer-chip">
+                  Story
+                </Link>
+              </div>
+            </div>
 
             {posts.length === 0 ? (
-              <div className="empty">No posts in this filter yet. Be the first to share.</div>
+              <div className="feed-empty">
+                <strong>No posts here yet</strong>
+                <p className="muted">Be the first to share a tip, story, or Found &amp; Missing alert.</p>
+                <Link className="btn btn-amber" href="/create">
+                  Create a post
+                </Link>
+              </div>
             ) : (
               <div className="social-feed">
                 {posts.map((post) => (
