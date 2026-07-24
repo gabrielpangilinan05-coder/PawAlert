@@ -3,9 +3,9 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { createSmsOtp } from "@/lib/otp";
+import { createEmailOtp } from "@/lib/otp";
+import { sendOtpEmail } from "@/lib/mail";
 import { normalizePhMobile } from "@/lib/phone";
-import { sendSms } from "@/lib/sms";
 import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -20,8 +20,8 @@ const schema = z.object({
   passwordConfirm: z.string().min(6),
 });
 
-function smsDevPreview(): boolean {
-  return process.env.SMS_DEV_MODE !== "false";
+function mailDevPreview(): boolean {
+  return process.env.MAIL_DEV_MODE !== "false";
 }
 
 export async function POST(req: Request) {
@@ -50,13 +50,10 @@ export async function POST(req: Request) {
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
-    const code = await createSmsOtp(phone, "register");
-    const sms = await sendSms(
-      phone,
-      `PawAlert code: ${code}. Valid for 10 minutes. Do not share this code.`,
-    );
-    if (!sms.ok) {
-      return NextResponse.json({ error: sms.error }, { status: 502 });
+    const code = await createEmailOtp(email, "register");
+    const mail = await sendOtpEmail(email, code, "register");
+    if (!mail.ok) {
+      return NextResponse.json({ error: mail.error }, { status: 502 });
     }
 
     const session = await getSession();
@@ -70,15 +67,15 @@ export async function POST(req: Request) {
       addressLng: body.addressLng ?? null,
       passwordHash,
     };
-    if (sms.mode === "dev" || smsDevPreview()) {
+    if (mail.mode === "dev" || mailDevPreview()) {
       session.devOtpPreview = code;
     }
     session.flash = {
       type: "success",
-      message: "Enter the SMS code to finish signup.",
+      message: "Enter the email code to finish signup.",
     };
     await session.save();
-    return NextResponse.json({ ok: true, dev: sms.mode === "dev" || smsDevPreview() });
+    return NextResponse.json({ ok: true, dev: mail.mode === "dev" || mailDevPreview() });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: "Check your form fields." }, { status: 400 });

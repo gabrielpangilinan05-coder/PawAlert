@@ -38,11 +38,19 @@ export async function POST(req: Request) {
   const limited = rateLimit(`chat:${user.id}`, LIMITS.write);
   if (!limited.ok) return tooManyRequests(limited.resetAt);
 
-  const form = await req.formData().catch(() => null);
-  const bodyJson = form ? null : await req.json().catch(() => ({}));
+  const contentType = req.headers.get("content-type") || "";
+  let to = 0;
+  let text = "";
 
-  const to = Number(form?.get("to") ?? bodyJson?.to ?? 0);
-  const text = String(form?.get("body") ?? bodyJson?.body ?? "").trim();
+  if (contentType.includes("application/json")) {
+    const bodyJson = await req.json().catch(() => ({}));
+    to = Number((bodyJson as { to?: unknown }).to ?? 0);
+    text = String((bodyJson as { body?: unknown }).body ?? "").trim();
+  } else {
+    const form = await req.formData().catch(() => null);
+    to = Number(form?.get("to") ?? 0);
+    text = String(form?.get("body") ?? "").trim();
+  }
 
   try {
     const message = await sendMessage(user.id, to, text);

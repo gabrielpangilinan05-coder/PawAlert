@@ -35,9 +35,31 @@ export function MapPicker({
   const [lng, setLng] = useState<number | null>(initialLng);
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState("Search a place, use GPS, or tap the map.");
+  const [expanded, setExpanded] = useState(false);
 
   onLabelRef.current = onLabel;
   onCoordsRef.current = onCoords;
+
+  useEffect(() => {
+    if (!expanded) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setExpanded(false);
+    }
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [expanded]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const t = window.setTimeout(() => map.invalidateSize(), 80);
+    return () => window.clearTimeout(t);
+  }, [expanded]);
 
   async function reverseGeocode(nextLat: number, nextLng: number) {
     const seq = ++reverseSeq.current;
@@ -181,7 +203,19 @@ export function MapPicker({
   }
 
   return (
-    <div className="map-picker">
+    <div className={`map-picker${expanded ? " map-picker--expanded" : ""}`}>
+      {expanded ? (
+        <div className="map-picker-expanded-head">
+          <strong>Pick a location</strong>
+          <button
+            type="button"
+            className="btn btn-sm btn-amber"
+            onClick={() => setExpanded(false)}
+          >
+            Done
+          </button>
+        </div>
+      ) : null}
       <input type="hidden" name={latName} value={lat ?? ""} readOnly />
       <input type="hidden" name={lngName} value={lng ?? ""} readOnly />
       <div className="map-search-row">
@@ -222,7 +256,20 @@ export function MapPicker({
           ))}
         </div>
       )}
-      <div ref={mapEl} className="map-canvas" role="application" aria-label="Map" />
+      <div className="map-canvas-wrap">
+        <div ref={mapEl} className="map-canvas" role="application" aria-label="Map" />
+        {!expanded ? (
+          <button
+            type="button"
+            className="map-expand-fab"
+            onClick={() => setExpanded(true)}
+            aria-label="Enlarge map"
+            title="Enlarge map"
+          >
+            ⛶
+          </button>
+        ) : null}
+      </div>
       <p className="map-coords-hint muted">{hint}</p>
     </div>
   );

@@ -12,7 +12,7 @@ export default async function ForgotPasswordPage() {
     <div className="page-wrap">
       <div className="panel">
         <h1>Forgot password</h1>
-        <p className="muted">Enter your account email and we’ll text a reset code to your phone.</p>
+        <p className="muted">Enter your account email and we’ll send a reset code to your inbox.</p>
         <ForgotPasswordForm />
         <p className="muted" style={{ marginTop: "1rem" }}>
           Remembered it? <Link href="/login">Log in</Link>

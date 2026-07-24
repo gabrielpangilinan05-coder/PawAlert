@@ -37,7 +37,7 @@ export function VerifyForm({ preview }: { preview?: string | null }) {
     <form onSubmit={onSubmit} className="form-grid">
       {preview && (
         <div className="flash flash-success">
-          Dev mode SMS OTP: <strong>{preview}</strong>
+          Dev mode email OTP: <strong>{preview}</strong>
         </div>
       )}
       {error && <div className="flash flash-error">{error}</div>}

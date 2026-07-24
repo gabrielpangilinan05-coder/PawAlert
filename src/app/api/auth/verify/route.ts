@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { verifySmsOtp } from "@/lib/otp";
+import { verifyEmailOtp } from "@/lib/otp";
 import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -21,11 +21,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No pending registration. Start again." }, { status: 400 });
     }
 
-    if (!pending.phone) {
-      return NextResponse.json({ error: "No phone on pending registration. Start again." }, { status: 400 });
+    if (!pending.email) {
+      return NextResponse.json({ error: "No email on pending registration. Start again." }, { status: 400 });
     }
 
-    const ok = await verifySmsOtp(pending.phone, body.code, "register");
+    const ok = await verifyEmailOtp(pending.email, body.code, "register");
     if (!ok) {
       return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
     }

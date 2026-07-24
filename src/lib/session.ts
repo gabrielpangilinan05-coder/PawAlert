@@ -15,7 +15,7 @@ export type SessionData = {
   };
   pendingReset?: {
     userId: number;
-    phone: string;
+    email: string;
   };
   devOtpPreview?: string;
   flash?: { type: "success" | "error"; message: string };

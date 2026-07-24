@@ -45,7 +45,7 @@ export function ForgotPasswordForm() {
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
         />
-        <span className="muted">We’ll send a one-time SMS code to the phone on your account.</span>
+        <span className="muted">We’ll send a one-time code to this email.</span>
       </label>
       <button className="btn btn-amber" type="submit" disabled={loading}>
         {loading ? "Sending…" : "Send reset code"}

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { verifySmsOtp } from "@/lib/otp";
+import { verifyEmailOtp } from "@/lib/otp";
 import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -24,14 +24,14 @@ export async function POST(req: Request) {
 
     const session = await getSession();
     const pending = session.pendingReset;
-    if (!pending?.userId || !pending.phone) {
+    if (!pending?.userId || !pending.email) {
       return NextResponse.json(
         { error: "No pending reset. Request a new code from Forgot password." },
         { status: 400 },
       );
     }
 
-    const ok = await verifySmsOtp(pending.phone, body.code, "reset");
+    const ok = await verifyEmailOtp(pending.email, body.code, "reset");
     if (!ok) {
       return NextResponse.json({ error: "Invalid or expired code." }, { status: 400 });
     }

@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { normalizePhMobile } from "@/lib/phone";
 
 const MapPicker = dynamic(
   () => import("@/components/MapPicker").then((m) => m.MapPicker),
@@ -34,6 +35,14 @@ export function RegisterForm() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    const phone = normalizePhMobile(form.phone);
+    if (!phone) {
+      setError("Enter a valid PH mobile number (e.g. 09XXXXXXXXX). Phone is required.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -41,7 +50,7 @@ export function RegisterForm() {
         body: JSON.stringify({
           name: form.name,
           email: form.email,
-          phone: form.phone,
+          phone,
           messenger: form.messenger,
           address: form.address,
           addressLat: form.addressLat,
@@ -89,15 +98,26 @@ export function RegisterForm() {
           placeholder="09XXXXXXXXX"
           value={form.phone}
           onChange={(e) => set("phone", e.target.value)}
+          aria-required="true"
         />
-        <span className="muted">We&apos;ll send a one-time SMS code to this number.</span>
+        <span className="muted">
+          Required for pet QR tags so finders can call you. Verification code goes to your email.
+        </span>
       </label>
       <label>
-        Messenger
-        <input value={form.messenger} onChange={(e) => set("messenger", e.target.value)} />
+        <span>
+          Messenger <span className="muted">(optional)</span>
+        </span>
+        <input
+          value={form.messenger}
+          onChange={(e) => set("messenger", e.target.value)}
+          placeholder="Facebook username or m.me link"
+        />
       </label>
       <label>
-        Address
+        <span>
+          Address <span className="muted">(optional)</span>
+        </span>
         <input
           value={form.address}
           onChange={(e) => set("address", e.target.value)}

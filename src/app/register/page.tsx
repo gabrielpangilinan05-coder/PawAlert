@@ -12,7 +12,9 @@ export default async function RegisterPage() {
     <div className="page-wrap">
       <div className="panel" style={{ maxWidth: 520 }}>
         <h1>Create your account</h1>
-        <p className="muted">We’ll confirm your email with a one-time code before the account is created.</p>
+        <p className="muted">
+          We&apos;ll confirm your email with a one-time code before the account is created.
+        </p>
         <RegisterForm />
         <p className="muted" style={{ marginTop: "1rem" }}>
           Already registered? <Link href="/login">Log in</Link>

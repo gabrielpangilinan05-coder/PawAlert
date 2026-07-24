@@ -2,20 +2,20 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPool } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { createSmsOtp } from "@/lib/otp";
-import { sendSms } from "@/lib/sms";
+import { createEmailOtp } from "@/lib/otp";
+import { sendOtpEmail } from "@/lib/mail";
 import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
 const schema = z.object({
   email: z.string().email(),
 });
 
-function smsDevPreview(): boolean {
-  return process.env.SMS_DEV_MODE !== "false";
+function mailDevPreview(): boolean {
+  return process.env.MAIL_DEV_MODE !== "false";
 }
 
 const GENERIC_OK =
-  "If that email is registered with a phone number, we sent a reset code by SMS.";
+  "If that email is registered, we sent a reset code to your inbox.";
 
 export async function POST(req: Request) {
   const limited = rateLimit(`forgot:${clientIp(req)}`, LIMITS.authForgot);
@@ -26,44 +26,40 @@ export async function POST(req: Request) {
     const email = body.email.trim().toLowerCase();
     const pool = getPool();
     const [rows] = await pool.query(
-      `SELECT id, phone, banned_at FROM users WHERE email = ? LIMIT 1`,
+      `SELECT id, banned_at FROM users WHERE email = ? LIMIT 1`,
       [email],
     );
-    const user = (rows as { id: number; phone: string | null; banned_at: Date | null }[])[0];
+    const user = (rows as { id: number; banned_at: Date | null }[])[0];
 
-    // Always look like success when the account is missing/banned/no phone (anti-enumeration).
-    if (!user || user.banned_at || !user.phone) {
+    // Always look like success when the account is missing/banned (anti-enumeration).
+    if (!user || user.banned_at) {
       return NextResponse.json({ ok: true, message: GENERIC_OK });
     }
 
-    const phone = user.phone;
-    const code = await createSmsOtp(phone, "reset");
-    const sms = await sendSms(
-      phone,
-      `PawAlert reset code: ${code}. Valid for 10 minutes. Do not share this code.`,
-    );
-    if (!sms.ok) {
-      return NextResponse.json({ error: sms.error }, { status: 502 });
+    const code = await createEmailOtp(email, "reset");
+    const mail = await sendOtpEmail(email, code, "reset");
+    if (!mail.ok) {
+      return NextResponse.json({ error: mail.error }, { status: 502 });
     }
 
     const session = await getSession();
-    session.pendingReset = { userId: user.id, phone };
+    session.pendingReset = { userId: user.id, email };
     session.pendingRegister = undefined;
-    if (sms.mode === "dev" || smsDevPreview()) {
+    if (mail.mode === "dev" || mailDevPreview()) {
       session.devOtpPreview = code;
     } else {
       session.devOtpPreview = undefined;
     }
     session.flash = {
       type: "success",
-      message: "Enter the SMS code and choose a new password.",
+      message: "Enter the email code and choose a new password.",
     };
     await session.save();
 
     return NextResponse.json({
       ok: true,
       message: GENERIC_OK,
-      dev: sms.mode === "dev" || smsDevPreview(),
+      dev: mail.mode === "dev" || mailDevPreview(),
     });
   } catch (err) {
     if (err instanceof z.ZodError) {
