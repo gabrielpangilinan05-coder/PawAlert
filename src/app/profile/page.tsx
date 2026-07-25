@@ -4,8 +4,73 @@ import { BodyClass } from "@/components/BodyClass";
 import { FollowButton } from "@/components/FollowButton";
 import { UserAvatar } from "@/components/UserAvatar";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
-import { followerCount, followingCount, isFollowing } from "@/lib/follows";
 import { getPool } from "@/lib/db";
+import { followerCount, followingCount, isFollowing } from "@/lib/follows";
+import { shortPlace } from "@/lib/post-display";
+
+function messengerDisplay(raw: string): { label: string; href: string | null } {
+  const t = raw.trim();
+  if (!t) return { label: "", href: null };
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      const u = new URL(t);
+      const host = u.hostname.replace(/^www\./, "");
+      const path = u.pathname.replace(/\/$/, "");
+      return {
+        label: path && path !== "/" ? `${host}${path}` : host,
+        href: t,
+      };
+    } catch {
+      return { label: t, href: t };
+    }
+  }
+  const handle = t.replace(/^@/, "").replace(/^m\.me\//i, "");
+  return {
+    label: handle.startsWith("facebook.com") ? handle : `@${handle}`,
+    href: /^https?:\/\//i.test(t) ? t : `https://m.me/${encodeURIComponent(handle)}`,
+  };
+}
+
+function AboutIcon({ kind }: { kind: "email" | "phone" | "messenger" | "area" }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (kind === "email") {
+    return (
+      <svg {...common}>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </svg>
+    );
+  }
+  if (kind === "phone") {
+    return (
+      <svg {...common}>
+        <path d="M6.5 3.5h3l1.5 4-2 1.5a12 12 0 0 0 5.5 5.5l1.5-2 4 1.5v3A2 2 0 0 1 18 19 14 14 0 0 1 5 6a2 2 0 0 1 1.5-2.5Z" />
+      </svg>
+    );
+  }
+  if (kind === "messenger") {
+    return (
+      <svg {...common}>
+        <path d="M12 3.5c-4.7 0-8.5 3.4-8.5 7.6 0 2.4 1.2 4.5 3.2 5.9V20l2.9-1.6c.8.2 1.6.3 2.4.3 4.7 0 8.5-3.4 8.5-7.6S16.7 3.5 12 3.5Z" />
+        <path d="m8.5 12.5 2.4-2.5 2.4 2.3 2.7-2.3" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <path d="M12 21s7-4.4 7-10a7 7 0 1 0-14 0c0 5.6 7 10 7 10Z" />
+      <circle cx="12" cy="11" r="2.4" />
+    </svg>
+  );
+}
 
 export const metadata = { title: "Profile" };
 
@@ -123,16 +188,48 @@ export default async function ProfilePage({
 
   // Private: only the profile owner sees contact details here.
   // Public pet pages still use Manage pet privacy checkboxes when missing.
-  const contactBits = isSelf
-    ? (
-        [
-          { label: "Email", value: profile.email },
-          profile.phone ? { label: "Phone", value: profile.phone } : null,
-          profile.messenger ? { label: "Messenger", value: profile.messenger } : null,
-          profile.address ? { label: "Area", value: profile.address } : null,
-        ] as ({ label: string; value: string } | null)[]
-      ).filter(Boolean) as { label: string; value: string }[]
-    : [];
+  type AboutRow = {
+    kind: "email" | "phone" | "messenger" | "area";
+    label: string;
+    value: string;
+    href?: string | null;
+    title?: string;
+  };
+  const aboutRows: AboutRow[] = [];
+  if (isSelf) {
+    aboutRows.push({
+      kind: "email",
+      label: "Email",
+      value: profile.email,
+      href: `mailto:${profile.email}`,
+    });
+    if (profile.phone) {
+      aboutRows.push({
+        kind: "phone",
+        label: "Phone",
+        value: profile.phone,
+        href: `tel:${profile.phone}`,
+      });
+    }
+    if (profile.messenger) {
+      const m = messengerDisplay(profile.messenger);
+      aboutRows.push({
+        kind: "messenger",
+        label: "Messenger",
+        value: m.label,
+        href: m.href,
+        title: profile.messenger,
+      });
+    }
+    if (profile.address) {
+      aboutRows.push({
+        kind: "area",
+        label: "Area",
+        value: shortPlace(profile.address, 56) || profile.address,
+        title: profile.address,
+      });
+    }
+  }
 
   return (
     <>
@@ -174,14 +271,42 @@ export default async function ProfilePage({
           </div>
         </header>
 
-        {contactBits.length > 0 ? (
-          <section className="profile-contact" aria-label="Contact">
-            {contactBits.map((item) => (
-              <div key={item.label} className="profile-contact__item">
-                <span className="profile-contact__label">{item.label}</span>
-                <span className="profile-contact__value">{item.value}</span>
-              </div>
-            ))}
+        {aboutRows.length > 0 ? (
+          <section className="profile-about" aria-label="Personal details">
+            <div className="profile-about__head">
+              <h2>Personal details</h2>
+              <Link className="profile-about__edit" href="/profile/edit">
+                Edit
+              </Link>
+            </div>
+            <ul className="profile-about__list">
+              {aboutRows.map((row) => (
+                <li key={row.kind} className="profile-about__row">
+                  <span className="profile-about__icon">
+                    <AboutIcon kind={row.kind} />
+                  </span>
+                  <div className="profile-about__copy">
+                    <span className="profile-about__label">{row.label}</span>
+                    {row.href ? (
+                      <a
+                        className="profile-about__value"
+                        href={row.href}
+                        title={row.title}
+                        {...(row.href.startsWith("http")
+                          ? { target: "_blank", rel: "noopener noreferrer" }
+                          : {})}
+                      >
+                        {row.value}
+                      </a>
+                    ) : (
+                      <span className="profile-about__value" title={row.title}>
+                        {row.value}
+                      </span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
           </section>
         ) : null}
 
@@ -191,10 +316,18 @@ export default async function ProfilePage({
             <span className="meta">{pets.length} registered</span>
           </div>
           {pets.length === 0 ? (
-            <div className="empty">
-              {isSelf
-                ? "No pets yet. Register one to generate a QR tag."
-                : "No registered pets yet."}
+            <div className="profile-empty">
+              <strong>{isSelf ? "No pets yet" : "No pets registered"}</strong>
+              <p>
+                {isSelf
+                  ? "Register a pet to get a free QR tag and public profile."
+                  : "This member hasn’t registered a pet yet."}
+              </p>
+              {isSelf ? (
+                <Link className="btn btn-amber" href="/pets/new">
+                  Add pet
+                </Link>
+              ) : null}
             </div>
           ) : (
             <div className="pet-grid">
@@ -266,10 +399,18 @@ export default async function ProfilePage({
             ) : null}
           </div>
           {posts.length === 0 ? (
-            <div className="empty">
-              {isSelf
-                ? "No posts yet. Share a story or Found/Missing alert."
-                : "No posts yet."}
+            <div className="profile-empty">
+              <strong>{isSelf ? "No posts yet" : "No posts"}</strong>
+              <p>
+                {isSelf
+                  ? "Share a story, tip, or Found & Missing alert with the community."
+                  : "This member hasn’t posted yet."}
+              </p>
+              {isSelf ? (
+                <Link className="btn btn-outline" href="/create">
+                  New post
+                </Link>
+              ) : null}
             </div>
           ) : (
             <div className="feed-grid">
