@@ -147,6 +147,15 @@ export default async function PostPage({
               ) : null}
             </div>
           ) : null}
+
+          {user &&
+          (Number(post.user_id) === user.id || user.role === "admin") ? (
+            <div className="alert-contact-actions" style={{ marginTop: "0.75rem" }}>
+              <Link className="btn btn-outline" href={`/post/${postId}/edit`}>
+                Edit post
+              </Link>
+            </div>
+          ) : null}
         </div>
       </div>
 

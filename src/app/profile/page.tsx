@@ -73,7 +73,13 @@ export default async function ProfilePage({
             {followers} followers · {followingN} following · joined {joined}
           </p>
         </div>
-        {!isSelf && (
+        {isSelf ? (
+          <div className="people-card-actions">
+            <Link className="btn btn-small btn-amber" href="/profile/edit">
+              Edit profile
+            </Link>
+          </div>
+        ) : (
           <div className="people-card-actions">
             <FollowButton userId={profile.id} initialFollowing={following} />
             <Link className="btn btn-small btn-outline" href={`/messages?with=${profile.id}`}>
