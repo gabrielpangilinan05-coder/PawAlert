@@ -136,7 +136,6 @@ export function SiteHeader({
               </Link>
               <Link href="/profile">Profile</Link>
               {user.role === "admin" ? <Link href="/admin">Admin</Link> : null}
-              <Link href="/pets/new">Add Pet</Link>
               <form action="/api/auth/logout" method="post" className="inline">
                 <button type="submit" className="nav-muted linkish">
                   Log out
