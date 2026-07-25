@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { mediaUrl } from "@/lib/media";
 import { UserAvatar } from "@/components/UserAvatar";
+import { bestDirectionsUrl, homeAreaDirectionsUrl } from "@/lib/directions";
 import { relativeTime, userInitial } from "@/lib/format";
 import type { FeedPost } from "@/lib/posts";
 import { useUnseenCount } from "@/lib/unseen";
@@ -106,6 +107,8 @@ export function SocialCard({
       ? `mailto:${post.contact_email}`
       : null;
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
+  const directionsHref = bestDirectionsUrl(post);
+  const homeDir = homeAreaDirectionsUrl(post);
 
   async function toggleLike() {
     if (!loggedIn) {
@@ -281,6 +284,16 @@ export function SocialCard({
               View pet profile
             </Link>
           )}
+          {directionsHref ? (
+            <a
+              className="btn btn-outline"
+              href={directionsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {homeDir ? "Directions home" : "Get directions"}
+            </a>
+          ) : null}
           <Link className="btn btn-outline" href={`/post/${post.id}`}>
             Full post
           </Link>

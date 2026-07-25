@@ -29,6 +29,13 @@ export type FeedPost = {
   pet_last_seen_text: string | null;
   pet_last_seen_notes: string | null;
   pet_last_seen_at: Date | string | null;
+  pet_last_seen_lat: number | string | null;
+  pet_last_seen_lng: number | string | null;
+  pet_show_address: number | null;
+  pet_home_lat: number | string | null;
+  pet_home_lng: number | string | null;
+  owner_address_lat: number | string | null;
+  owner_address_lng: number | string | null;
   like_count: number;
   comment_count: number;
   share_count: number;
@@ -97,6 +104,13 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
       pets.last_seen_text AS pet_last_seen_text,
       pets.last_seen_notes AS pet_last_seen_notes,
       pets.last_seen_at AS pet_last_seen_at,
+      pets.last_seen_lat AS pet_last_seen_lat,
+      pets.last_seen_lng AS pet_last_seen_lng,
+      pets.show_address AS pet_show_address,
+      pets.home_lat AS pet_home_lat,
+      pets.home_lng AS pet_home_lng,
+      users.address_lat AS owner_address_lat,
+      users.address_lng AS owner_address_lng,
       COALESCE(lc.like_count, 0) AS like_count,
       COALESCE(cc.comment_count, 0) AS comment_count,
       COALESCE(posts.share_count, 0) AS share_count
@@ -194,8 +208,15 @@ export async function getPostById(id: number, opts?: { includeHidden?: boolean }
       pets.sex AS pet_sex,
       pets.last_seen_text AS pet_last_seen_text,
       pets.last_seen_at AS pet_last_seen_at,
+      pets.last_seen_lat AS pet_last_seen_lat,
+      pets.last_seen_lng AS pet_last_seen_lng,
       pets.last_seen_media_path,
-      pets.last_seen_media_type
+      pets.last_seen_media_type,
+      pets.show_address AS pet_show_address,
+      pets.home_lat AS pet_home_lat,
+      pets.home_lng AS pet_home_lng,
+      users.address_lat AS owner_address_lat,
+      users.address_lng AS owner_address_lng
      FROM posts
      LEFT JOIN users ON users.id = posts.user_id
      LEFT JOIN pets ON pets.id = posts.pet_id

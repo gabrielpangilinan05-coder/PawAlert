@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import type { FeedPost } from "@/lib/posts";
+import {
+  alertPinDirectionsUrl,
+  homeAreaDirectionsUrl,
+} from "@/lib/directions";
 import { mediaUrl } from "@/lib/media";
 import {
   ShareAlertDialog,
@@ -49,9 +53,22 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
   const when = formatDate(post.pet_last_seen_at || post.created_at);
   const notes = post.pet_last_seen_notes?.trim() || "";
   const message = post.description?.trim() || "";
-  const lat = toNum(post.location_lat);
-  const lng = toNum(post.location_lng);
+  const lat =
+    toNum(post.location_lat) ??
+    toNum(post.pet_last_seen_lat) ??
+    (Number(post.pet_show_address) === 1
+      ? toNum(post.pet_home_lat) ?? toNum(post.owner_address_lat)
+      : null);
+  const lng =
+    toNum(post.location_lng) ??
+    toNum(post.pet_last_seen_lng) ??
+    (Number(post.pet_show_address) === 1
+      ? toNum(post.pet_home_lng) ?? toNum(post.owner_address_lng)
+      : null);
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
+  const homeDir = homeAreaDirectionsUrl(post);
+  const pinDir = alertPinDirectionsUrl(post);
+  const directionsHref = homeDir || pinDir;
 
   const contactHref = post.contact_phone
     ? `tel:${post.contact_phone}`
@@ -116,6 +133,16 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
               View profile
             </Link>
           )}
+          {directionsHref ? (
+            <a
+              className="alert-feed-card__btn alert-feed-card__btn--fb"
+              href={directionsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {homeDir ? "Directions home" : "Get directions"}
+            </a>
+          ) : null}
           <button
             type="button"
             className="alert-feed-card__btn alert-feed-card__btn--fb"

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPool } from "@/lib/db";
 import { mediaUrl, requestOrigin } from "@/lib/media";
 import { buildPetOgDescription, formatDisplayDatetime, truncateText } from "@/lib/og-pet";
+import { directionsFromCoords } from "@/lib/maps";
 import { getPetByPublicSlug } from "@/lib/pets-public";
 import { PetQrScanButton } from "@/components/PetQrScanButton";
 import { PetPublicMedia } from "@/components/PetPublicMedia";
@@ -101,13 +102,24 @@ export default async function PetPublicPage({
   const ownerAddress =
     showAddress && pet.owner_address ? String(pet.owner_address) : null;
 
-  const hasContact = Boolean(ownerName || ownerPhone || ownerEmail || ownerMessenger || ownerAddress);
+  const homeDirections =
+    showAddress
+      ? directionsFromCoords(pet.home_lat, pet.home_lng) ||
+        directionsFromCoords(pet.owner_address_lat, pet.owner_address_lng)
+      : null;
+  const lastSeenDirections = directionsFromCoords(pet.last_seen_lat, pet.last_seen_lng);
+
+  const hasContact = Boolean(
+    ownerName || ownerPhone || ownerEmail || ownerMessenger || ownerAddress || homeDirections,
+  );
   const mapHref =
     pet.last_seen_lat != null && pet.last_seen_lng != null
       ? `https://www.openstreetmap.org/?mlat=${pet.last_seen_lat}&mlon=${pet.last_seen_lng}#map=16/${pet.last_seen_lat}/${pet.last_seen_lng}`
       : null;
 
-  const hasStickyContact = Boolean(ownerPhone || ownerEmail || ownerMessenger);
+  const hasStickyContact = Boolean(
+    ownerPhone || ownerEmail || ownerMessenger || homeDirections || lastSeenDirections,
+  );
 
   return (
     <div className={`page-wrap pp${hasStickyContact ? " pp--sticky" : ""}`}>
@@ -190,6 +202,26 @@ export default async function PetPublicPage({
                       Call
                     </a>
                   ) : null}
+                  {homeDirections ? (
+                    <a
+                      className="btn btn-amber"
+                      href={homeDirections}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Directions home
+                    </a>
+                  ) : null}
+                  {lastSeenDirections && isMissing ? (
+                    <a
+                      className="btn btn-outline"
+                      href={lastSeenDirections}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Directions last seen
+                    </a>
+                  ) : null}
                   {ownerMessenger ? (
                     <a
                       className="btn btn-outline"
@@ -224,6 +256,25 @@ export default async function PetPublicPage({
           {ownerPhone ? (
             <a className="btn btn-amber" href={`tel:${ownerPhone}`}>
               Call owner
+            </a>
+          ) : null}
+          {homeDirections ? (
+            <a
+              className="btn btn-amber"
+              href={homeDirections}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Directions
+            </a>
+          ) : lastSeenDirections && isMissing ? (
+            <a
+              className="btn btn-amber"
+              href={lastSeenDirections}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Directions
             </a>
           ) : null}
           {ownerMessenger ? (

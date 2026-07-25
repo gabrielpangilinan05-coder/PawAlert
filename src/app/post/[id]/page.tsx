@@ -5,6 +5,10 @@ import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
 import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
+import {
+  alertPinDirectionsUrl,
+  homeAreaDirectionsUrl,
+} from "@/lib/directions";
 import { getPostById, listPostMedia } from "@/lib/posts";
 import { postLikeCount, userLikedPost } from "@/lib/social";
 import { getPool } from "@/lib/db";
@@ -133,20 +137,46 @@ export default async function PostPage({
 
           <p className="alert-body">{String(post.description)}</p>
 
-          {Boolean(post.contact_phone || post.contact_email) ? (
-            <div className="alert-contact-actions">
-              {post.contact_phone ? (
-                <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
-                  Call
-                </a>
-              ) : null}
-              {post.contact_email ? (
-                <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
-                  Email
-                </a>
-              ) : null}
-            </div>
-          ) : null}
+          {(() => {
+            const homeDir = homeAreaDirectionsUrl(post);
+            const pinDir = alertPinDirectionsUrl(post);
+            const hasContact = Boolean(post.contact_phone || post.contact_email || homeDir || pinDir);
+            if (!hasContact) return null;
+            return (
+              <div className="alert-contact-actions">
+                {post.contact_phone ? (
+                  <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
+                    Call
+                  </a>
+                ) : null}
+                {homeDir ? (
+                  <a
+                    className="btn btn-amber"
+                    href={homeDir}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Directions home
+                  </a>
+                ) : null}
+                {pinDir ? (
+                  <a
+                    className="btn btn-outline"
+                    href={pinDir}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {homeDir ? "Directions last seen" : "Get directions"}
+                  </a>
+                ) : null}
+                {post.contact_email ? (
+                  <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
+                    Email
+                  </a>
+                ) : null}
+              </div>
+            );
+          })()}
 
           {user &&
           (Number(post.user_id) === user.id || user.role === "admin") ? (
