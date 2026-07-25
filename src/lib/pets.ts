@@ -20,18 +20,15 @@ export async function syncMissingPost(petId: number): Promise<void> {
   const existing = (openRows as { id: number }[])[0];
 
   if (pet.status === "missing") {
-    const species = String(pet.species || "Pet");
-    const breed = String(pet.breed || "").trim();
     const title = `${String(pet.name)} is missing`;
+    // Keep description short — species/location render as structured fields on the post page.
     const desc = [
-      breed ? `${breed} ${species}` : species,
-      pet.medical_notes ? `Notes: ${pet.medical_notes}.` : "",
-      pet.last_seen_text ? `Last seen: ${pet.last_seen_text}.` : "",
-      pet.last_seen_notes ? `Details: ${pet.last_seen_notes}.` : "",
+      pet.last_seen_notes ? String(pet.last_seen_notes).trim() : "",
+      pet.medical_notes ? String(pet.medical_notes).trim() : "",
       "Please help us bring them home.",
     ]
       .filter(Boolean)
-      .join(" ");
+      .join("\n\n");
 
     const feedPhoto =
       pet.last_seen_media_type === "image" && pet.last_seen_media_path

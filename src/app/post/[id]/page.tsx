@@ -10,6 +10,7 @@ import {
   alertPinDirectionsUrl,
   homeAreaDirectionsUrl,
 } from "@/lib/directions";
+import { cleanPostBody, shortPlace } from "@/lib/post-display";
 import { getPostById, listPostMedia } from "@/lib/posts";
 import { postLikeCount, userLikedPost } from "@/lib/social";
 import { getPool } from "@/lib/db";
@@ -23,9 +24,16 @@ export async function generateMetadata({
   const admin = await getAdminUser();
   const post = await getPostById(Number(id), { includeHidden: Boolean(admin) });
   if (!post) return { title: "Post" };
+  const place = shortPlace(String(post.location_text || ""));
+  const desc =
+    cleanPostBody(String(post.description || ""), {
+      locationText: String(post.location_text || ""),
+      species: String(post.species || ""),
+    }) ||
+    (place ? `Last seen near ${place}` : String(post.title));
   return {
     title: String(post.title),
-    description: String(post.description).slice(0, 160),
+    description: desc.slice(0, 160),
   };
 }
 
@@ -76,6 +84,7 @@ export default async function PostPage({
   const isMissing = post.type === "missing" && post.status !== "resolved";
   const isFound = post.type === "found" && post.status !== "resolved";
   const isResolved = post.status === "resolved";
+  const isAlert = isMissing || isFound || isResolved;
 
   const statusLabel = isResolved
     ? "REUNITED"
@@ -92,6 +101,39 @@ export default async function PostPage({
       : isMissing
         ? "missing"
         : String(post.type);
+
+  const locationFull = String(post.location_text || "").trim();
+  const locationShort = shortPlace(locationFull);
+  const species = String(post.species || "").trim();
+  const petBreed = post.pet_breed != null ? String(post.pet_breed).trim() : "";
+  const body = cleanPostBody(String(post.description || ""), {
+    locationText: locationFull,
+    species,
+    breed: petBreed,
+  });
+
+  const homeDir = homeAreaDirectionsUrl(post);
+  const pinDir = alertPinDirectionsUrl(post);
+  const hasContact = Boolean(post.contact_phone || post.contact_email || homeDir || pinDir);
+  const canManage =
+    Boolean(user) && (Number(post.user_id) === user!.id || user!.role === "admin");
+
+  const facts: { label: string; value: string }[] = [];
+  if (species || petBreed) {
+    facts.push({
+      label: "Pet",
+      value: [species, petBreed].filter(Boolean).join(" · "),
+    });
+  }
+  if (locationFull) {
+    facts.push({
+      label: isMissing || isResolved ? "Last seen" : "Location",
+      value: locationFull,
+    });
+  }
+  if (post.contact_name && isAlert) {
+    facts.push({ label: "Posted by", value: String(post.contact_name) });
+  }
 
   return (
     <div className="page-wrap alert-detail">
@@ -110,24 +152,41 @@ export default async function PostPage({
       ) : null}
 
       <div className="alert-hero">
-        {galleryItems.length > 1 || galleryItems.some((g) => g.media_type === "video") ? (
-          <PostMediaGallery items={galleryItems} alt={String(post.title)} />
-        ) : (
-          <PostPhotoZoom src={photo!} alt={String(post.title)} />
-        )}
+        <div className="alert-hero__media">
+          {galleryItems.length > 1 || galleryItems.some((g) => g.media_type === "video") ? (
+            <PostMediaGallery items={galleryItems} alt={String(post.title)} />
+          ) : (
+            <PostPhotoZoom src={photo!} alt={String(post.title)} />
+          )}
+        </div>
 
         <div className="alert-hero-copy">
           <span className={`badge badge-${badgeClass}`}>{statusLabel}</span>
           <h1 className="alert-name">{String(post.title)}</h1>
           <p className="alert-kind">
-            {String(post.author_name || "Guest")}
-            {post.location_text ? ` · ${String(post.location_text)}` : ""}
-            {post.species ? ` · ${String(post.species)}` : ""}
+            <span>{String(post.author_name || "Guest")}</span>
+            {species ? (
+              <>
+                <span aria-hidden> · </span>
+                <span>{species}</span>
+              </>
+            ) : null}
+            {locationShort ? (
+              <>
+                <span aria-hidden> · </span>
+                <span title={locationFull || undefined}>{locationShort}</span>
+              </>
+            ) : null}
           </p>
 
           {isMissing ? (
             <p className="alert-urgent">
-              Missing alert — contact the poster if you have information.
+              Missing — contact the poster if you have information.
+            </p>
+          ) : null}
+          {isFound ? (
+            <p className="pp-banner pp-banner--safe" style={{ marginTop: "0.35rem" }}>
+              Found alert — help reunite this pet with their owner.
             </p>
           ) : null}
           {isResolved ? (
@@ -136,52 +195,56 @@ export default async function PostPage({
             </p>
           ) : null}
 
-          <p className="alert-body">{String(post.description)}</p>
+          {facts.length > 0 ? (
+            <dl className="alert-facts">
+              {facts.map((f) => (
+                <div key={f.label} className="alert-facts__row">
+                  <dt>{f.label}</dt>
+                  <dd>{f.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
 
-          {(() => {
-            const homeDir = homeAreaDirectionsUrl(post);
-            const pinDir = alertPinDirectionsUrl(post);
-            const hasContact = Boolean(post.contact_phone || post.contact_email || homeDir || pinDir);
-            if (!hasContact) return null;
-            return (
-              <div className="alert-contact-actions">
-                {post.contact_phone ? (
-                  <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
-                    Call
-                  </a>
-                ) : null}
-                {homeDir ? (
-                  <a
-                    className="btn btn-amber"
-                    href={homeDir}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Directions home
-                  </a>
-                ) : null}
-                {pinDir ? (
-                  <a
-                    className="btn btn-outline"
-                    href={pinDir}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {homeDir ? "Directions last seen" : "Get directions"}
-                  </a>
-                ) : null}
-                {post.contact_email ? (
-                  <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
-                    Email
-                  </a>
-                ) : null}
-              </div>
-            );
-          })()}
+          {body ? <p className="alert-body">{body}</p> : null}
 
-          {user &&
-          (Number(post.user_id) === user.id || user.role === "admin") ? (
-            <div className="alert-contact-actions" style={{ marginTop: "0.75rem" }}>
+          {hasContact ? (
+            <div className="alert-contact-actions">
+              {post.contact_phone ? (
+                <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
+                  Call
+                </a>
+              ) : null}
+              {homeDir ? (
+                <a
+                  className="btn btn-amber"
+                  href={homeDir}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Directions home
+                </a>
+              ) : null}
+              {pinDir ? (
+                <a
+                  className="btn btn-outline"
+                  href={pinDir}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {homeDir ? "Directions last seen" : "Get directions"}
+                </a>
+              ) : null}
+              {post.contact_email ? (
+                <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
+                  Email
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+
+          {canManage ? (
+            <div className="alert-contact-actions alert-owner-actions">
               <Link className="btn btn-outline" href={`/post/${postId}/edit`}>
                 Edit post
               </Link>

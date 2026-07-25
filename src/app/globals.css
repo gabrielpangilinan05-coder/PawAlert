@@ -1400,15 +1400,20 @@ img {
   display: block;
 }
 
+.alert-hero__media {
+  min-width: 0;
+}
+
 .alert-hero-copy {
   display: grid;
   align-content: start;
-  gap: 0.45rem;
-  padding: 1.1rem 1.2rem 1.25rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface) 88%, var(--leaf-wash));
-  box-shadow: var(--shadow);
+  gap: 0.55rem;
+  padding: 1.2rem 1.25rem 1.35rem;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, #c5d4c8);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.96), rgba(244, 248, 245, 0.92));
+  box-shadow: 0 14px 36px rgba(40, 55, 45, 0.07);
 }
 
 .alert-hero-copy .badge {
@@ -1418,35 +1423,76 @@ img {
 
 .alert-name {
   font-family: var(--font-display);
-  margin: 0.1rem 0 0;
-  font-size: clamp(1.75rem, 4vw, 2.35rem);
+  margin: 0;
+  font-size: clamp(1.7rem, 3.8vw, 2.25rem);
   letter-spacing: -0.03em;
   color: var(--ink);
-  line-height: 1.15;
+  line-height: 1.12;
 }
 
 .alert-kind {
   margin: 0;
-  color: var(--fog);
-  font-size: 0.95rem;
+  color: #5a6b60;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .alert-urgent {
-  margin: 0.35rem 0 0;
-  padding: 0.7rem 0.85rem;
+  margin: 0;
+  padding: 0.65rem 0.8rem;
   border-radius: 12px;
   background: var(--alert-soft);
   border: 1px solid color-mix(in srgb, var(--alert) 28%, white);
   color: color-mix(in srgb, var(--alert) 75%, var(--ink));
   font-weight: 600;
   line-height: 1.4;
+  font-size: 0.92rem;
+}
+
+.alert-facts {
+  margin: 0.15rem 0 0;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+}
+
+.alert-facts__row {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.alert-facts__row dt {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #7a877e;
+}
+
+.alert-facts__row dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.45;
+  color: #24362c;
+  word-break: break-word;
 }
 
 .alert-body {
-  margin: 0.35rem 0 0;
+  margin: 0;
   white-space: pre-wrap;
   line-height: 1.55;
   color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.alert-owner-actions {
+  padding-top: 0.35rem;
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
 }
 
 .alert-card {
@@ -1541,10 +1587,11 @@ img {
 }
 
 .alert-detail__engage {
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius);
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--surface) 90%, var(--mist));
+  padding: 0.75rem 0.95rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 22px rgba(40, 55, 45, 0.05);
 }
 
 @media (max-width: 720px) {
