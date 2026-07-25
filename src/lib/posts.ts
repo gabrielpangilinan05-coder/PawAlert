@@ -28,6 +28,7 @@ export type FeedPost = {
   pet_slug: string | null;
   pet_last_seen_text: string | null;
   pet_last_seen_notes: string | null;
+  pet_medical_notes: string | null;
   pet_last_seen_at: Date | string | null;
   pet_last_seen_lat: number | string | null;
   pet_last_seen_lng: number | string | null;
@@ -111,6 +112,7 @@ function feedSelect(mode: SelectMode): string {
       pets.public_slug AS pet_slug,
       pets.last_seen_text AS pet_last_seen_text,
       pets.last_seen_notes AS pet_last_seen_notes,
+      pets.medical_notes AS pet_medical_notes,
       pets.last_seen_at AS pet_last_seen_at,
       pets.last_seen_lat AS pet_last_seen_lat,
       pets.last_seen_lng AS pet_last_seen_lng,
@@ -147,6 +149,7 @@ function feedSelect(mode: SelectMode): string {
       pets.public_slug AS pet_slug,
       pets.last_seen_text AS pet_last_seen_text,
       NULL AS pet_last_seen_notes,
+      NULL AS pet_medical_notes,
       pets.last_seen_at AS pet_last_seen_at,
       NULL AS pet_last_seen_lat,
       NULL AS pet_last_seen_lng,

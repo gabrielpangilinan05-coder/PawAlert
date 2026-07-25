@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { appOrigin, mediaUrl } from "@/lib/media";
+import { splitAlertNotes } from "@/lib/post-display";
 import type { FeedPost } from "@/lib/posts";
 import type { ShareKind } from "@/lib/share";
 
@@ -91,6 +92,11 @@ export function shareDetailsFromFeedPost(post: FeedPost): ShareAlertDetails {
     : `${origin}/post/${post.id}`;
 
   const photo = mediaUrl(post.photo_path) || mediaUrl(post.pet_photo_path) || null;
+  const { lastSeenNote } = splitAlertNotes({
+    description: post.description,
+    medicalNotes: post.pet_medical_notes,
+    lastSeenNotes: post.pet_last_seen_notes,
+  });
 
   return {
     petName,
@@ -98,9 +104,7 @@ export function shareDetailsFromFeedPost(post: FeedPost): ShareAlertDetails {
     breed: post.pet_breed,
     lastSeenText: post.pet_last_seen_text || post.location_text,
     lastSeenNotes:
-      resolvedKind === "post"
-        ? post.description?.trim() || null
-        : post.pet_last_seen_notes || post.description?.trim() || null,
+      resolvedKind === "post" ? post.description?.trim() || null : lastSeenNote,
     lastSeenAt: asIso(post.pet_last_seen_at || (resolvedKind === "post" ? post.created_at : null)),
     publicUrl,
     photoUrl: photo,

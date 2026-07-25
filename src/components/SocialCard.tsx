@@ -9,7 +9,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { alertPinDirectionsUrl } from "@/lib/directions";
 import { relativeTime, userInitial } from "@/lib/format";
 import { resolveOwnerContact } from "@/lib/owner-contact";
-import { cleanPostBody, shortPlace } from "@/lib/post-display";
+import { cleanPostBody, shortPlace, splitAlertNotes } from "@/lib/post-display";
 import type { FeedPost } from "@/lib/posts";
 import { useUnseenCount } from "@/lib/unseen";
 import {
@@ -106,14 +106,24 @@ export function SocialCard({
   const petName = post.pet_name?.trim() || null;
   const species = String(post.species || "").trim();
   const breed = post.pet_breed != null ? String(post.pet_breed).trim() : "";
+  const { petNote, lastSeenNote } = useMemo(
+    () =>
+      splitAlertNotes({
+        description: post.description,
+        medicalNotes: post.pet_medical_notes,
+        lastSeenNotes: post.pet_last_seen_notes,
+      }),
+    [post.description, post.pet_medical_notes, post.pet_last_seen_notes],
+  );
   const body = useMemo(
     () =>
       cleanPostBody(post.description, {
         locationText: location,
         species,
         breed,
+        dropNotes: [petNote, lastSeenNote],
       }),
-    [post.description, location, species, breed],
+    [post.description, location, species, breed, petNote, lastSeenNote],
   );
   const bodyExcerpt = excerpt(body);
 
@@ -127,7 +137,38 @@ export function SocialCard({
         titleNorm === `${petNorm} found` ||
         titleNorm === `found ${petNorm}`)) ||
     (body && body.trim().toLowerCase().startsWith(titleNorm));
-  const showTitle = Boolean(title) && !redundantTitle && !(isAlert && petName);
+  // Alerts always show the post title (e.g. "happy is missing"); community posts hide dupes.
+  const showTitle = Boolean(title) && (isAlert || !redundantTitle);
+
+  const statusLabel = isResolved
+    ? "REUNITED"
+    : post.type === "found"
+      ? "FOUND"
+      : post.type === "missing"
+        ? "LOST"
+        : null;
+
+  const alertFacts: { label: string; value: string; note?: string | null }[] = [];
+  if (isAlert) {
+    if (species || breed || petNote) {
+      alertFacts.push({
+        label: "Pet",
+        value: [species, breed].filter(Boolean).join(" · ") || "Pet",
+        note: petNote,
+      });
+    }
+    if (location || lastSeenNote) {
+      alertFacts.push({
+        label: isResolved || post.type === "missing" ? "Last seen" : "Location",
+        value: location || lastSeenNote || "",
+        note: location ? lastSeenNote : null,
+      });
+    }
+    const postedBy = (post.contact_name || post.author_name || "").trim();
+    if (postedBy) {
+      alertFacts.push({ label: "Posted by", value: postedBy });
+    }
+  }
 
   const owner = resolveOwnerContact(post);
   const ownerUserId = Number(post.user_id) || 0;
@@ -268,28 +309,42 @@ export function SocialCard({
         </Link>
       ) : null}
 
-      {isAlert && (petName || locationShort) ? (
-        <div className="social-alert-meta">
-          {petName ? <span className="social-alert-name">{petName}</span> : null}
-          {species || breed ? (
-            <span className="social-alert-kind">
-              {[species, breed].filter(Boolean).join(" · ")}
+      {isAlert ? (
+        <div className="social-alert-facts-wrap">
+          {statusLabel ? (
+            <span className={`badge badge-${badgeClass(post.type, post.status)}`}>
+              {statusLabel}
             </span>
           ) : null}
-          {locationShort ? (
-            <span className="social-loc-chip" title={location || undefined}>
-              {locationShort}
-            </span>
+          {showTitle ? (
+            <h3 className="social-title social-title--alert">
+              <Link href={`/post/${post.id}`}>{title}</Link>
+            </h3>
+          ) : null}
+          {alertFacts.length > 0 ? (
+            <dl className="social-facts">
+              {alertFacts.map((f) => (
+                <div key={f.label} className="social-facts__row">
+                  <dt>{f.label}</dt>
+                  <dd>
+                    {f.value ? <span className="social-facts__main">{f.value}</span> : null}
+                    {f.note ? <span className="social-facts__note">{f.note}</span> : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
           ) : null}
         </div>
-      ) : null}
-
-      {showTitle ? (
-        <h3 className="social-title">
-          <Link href={`/post/${post.id}`}>{title}</Link>
-        </h3>
-      ) : null}
-      {bodyExcerpt ? <p className="social-body">{bodyExcerpt}</p> : null}
+      ) : (
+        <>
+          {showTitle ? (
+            <h3 className="social-title">
+              <Link href={`/post/${post.id}`}>{title}</Link>
+            </h3>
+          ) : null}
+          {bodyExcerpt ? <p className="social-body">{bodyExcerpt}</p> : null}
+        </>
+      )}
 
       {!isAlert && photo ? (
         <Link className="social-media" href={`/post/${post.id}`}>

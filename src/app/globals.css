@@ -2123,6 +2123,61 @@ textarea {
   overflow: hidden;
 }
 
+.social-alert-facts-wrap {
+  margin: 0.75rem 0 0.15rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.social-title--alert {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.social-facts {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--feed-ink) 10%, transparent);
+}
+
+.social-facts__row {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.social-facts__row dt {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--feed-muted);
+}
+
+.social-facts__row dd {
+  margin: 0;
+  display: grid;
+  gap: 0.15rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.4;
+  color: var(--feed-ink);
+  word-break: break-word;
+}
+
+.social-facts__note {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 550;
+  color: color-mix(in srgb, var(--feed-ink) 72%, var(--feed-muted));
+}
+
 .social-alert-meta {
   display: flex;
   flex-wrap: wrap;
