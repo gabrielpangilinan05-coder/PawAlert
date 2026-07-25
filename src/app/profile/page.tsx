@@ -121,12 +121,18 @@ export default async function ProfilePage({
     location_text: string | null;
   }[];
 
-  const contactBits = [
-    isSelf ? { label: "Email", value: profile.email } : null,
-    profile.phone ? { label: "Phone", value: profile.phone } : null,
-    profile.messenger ? { label: "Messenger", value: profile.messenger } : null,
-    profile.address ? { label: "Area", value: profile.address } : null,
-  ].filter(Boolean) as { label: string; value: string }[];
+  // Private: only the profile owner sees contact details here.
+  // Public pet pages still use Manage pet privacy checkboxes when missing.
+  const contactBits = isSelf
+    ? (
+        [
+          { label: "Email", value: profile.email },
+          profile.phone ? { label: "Phone", value: profile.phone } : null,
+          profile.messenger ? { label: "Messenger", value: profile.messenger } : null,
+          profile.address ? { label: "Area", value: profile.address } : null,
+        ] as ({ label: string; value: string } | null)[]
+      ).filter(Boolean) as { label: string; value: string }[]
+    : [];
 
   return (
     <>
