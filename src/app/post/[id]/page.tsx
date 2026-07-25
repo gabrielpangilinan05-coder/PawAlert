@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { LikeCommentBar } from "@/components/LikeCommentBar";
+import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
 import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
-import { getPostById } from "@/lib/posts";
+import { getPostById, listPostMedia } from "@/lib/posts";
 import { postLikeCount, userLikedPost } from "@/lib/social";
 import { getPool } from "@/lib/db";
 
@@ -48,10 +49,24 @@ export default async function PostPage({
   );
   const commentCount = Number((countRows as { c: number }[])[0]?.c ?? 0);
 
+  const gallery = await listPostMedia(postId);
   const photo =
     mediaUrl(post.photo_path as string | null) ||
     mediaUrl(post.pet_photo_path as string | null) ||
+    (gallery[0] ? mediaUrl(gallery[0].file_path) : null) ||
     "/icons/icon-512.png";
+  const galleryItems =
+    gallery.length > 0
+      ? gallery
+      : post.photo_path
+        ? [
+            {
+              id: 0,
+              file_path: String(post.photo_path),
+              media_type: String(post.media_type || "image"),
+            },
+          ]
+        : [];
 
   const isMissing = post.type === "missing" && post.status !== "resolved";
   const isFound = post.type === "found" && post.status !== "resolved";
@@ -90,7 +105,11 @@ export default async function PostPage({
       ) : null}
 
       <div className="alert-hero">
-        <PostPhotoZoom src={photo!} alt={String(post.title)} />
+        {galleryItems.length > 1 || galleryItems.some((g) => g.media_type === "video") ? (
+          <PostMediaGallery items={galleryItems} alt={String(post.title)} />
+        ) : (
+          <PostPhotoZoom src={photo!} alt={String(post.title)} />
+        )}
 
         <div className="alert-hero-copy">
           <span className={`badge badge-${badgeClass}`}>{statusLabel}</span>

@@ -203,3 +203,27 @@ export async function getPostById(id: number, opts?: { includeHidden?: boolean }
   const list = rows as Record<string, unknown>[];
   return list[0] ?? null;
 }
+
+export type PostMediaItem = {
+  id: number;
+  file_path: string;
+  media_type: "image" | "video" | string;
+  sort_order: number;
+};
+
+export async function listPostMedia(postId: number): Promise<PostMediaItem[]> {
+  const pool = getPool();
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, file_path, media_type, sort_order
+       FROM post_media
+       WHERE post_id = ?
+       ORDER BY sort_order ASC, id ASC`,
+      [postId],
+    );
+    return rows as PostMediaItem[];
+  } catch {
+    // Table may not exist until migration runs
+    return [];
+  }
+}

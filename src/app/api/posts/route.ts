@@ -1,8 +1,44 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { getPool } from "@/lib/db";
-import { isAlertType, normalizeSpecies, saveMediaFile } from "@/lib/upload";
+import {
+  isAlertType,
+  normalizeSpecies,
+  saveMediaFile,
+  saveMultipleMedia,
+  type SavedMedia,
+} from "@/lib/upload";
 import { clientIp, LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+function collectMediaFiles(form: FormData): File[] {
+  const files: File[] = [];
+  for (const [key, value] of form.entries()) {
+    if ((key === "media" || key === "media[]") && value instanceof File && value.size > 0) {
+      files.push(value);
+    }
+  }
+  return files;
+}
+
+function coverFrom(saved: SavedMedia[]): SavedMedia | null {
+  if (!saved.length) return null;
+  return saved.find((m) => m.type === "image") || saved[0] || null;
+}
+
+async function insertPostMedia(
+  pool: ReturnType<typeof getPool>,
+  postId: number,
+  saved: SavedMedia[],
+  startOrder = 0,
+) {
+  for (let i = 0; i < saved.length; i++) {
+    const item = saved[i]!;
+    await pool.execute(
+      `INSERT INTO post_media (post_id, file_path, media_type, sort_order) VALUES (?, ?, ?, ?)`,
+      [postId, item.path, item.type, startOrder + i],
+    );
+  }
+}
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -60,11 +96,18 @@ export async function POST(req: Request) {
       );
     }
 
-    const mediaField = form.get("media");
-    const media =
-      typeof mediaField === "string"
-        ? null
-        : await saveMediaFile(mediaField, "posts", "media");
+    const files = collectMediaFiles(form);
+    let saved: SavedMedia[] = [];
+    if (files.length > 0) {
+      saved = await saveMultipleMedia(files, "posts", 8);
+    } else {
+      const single = form.get("media");
+      if (single && typeof single !== "string") {
+        const one = await saveMediaFile(single, "posts", "media");
+        if (one) saved = [one];
+      }
+    }
+    const cover = coverFrom(saved);
 
     const pool = getPool();
     let petId: number | null = null;
@@ -107,8 +150,8 @@ export async function POST(req: Request) {
             title,
             description,
             species,
-            media?.path ?? null,
-            media?.type ?? null,
+            cover?.path ?? null,
+            cover?.type ?? null,
             location || null,
             locationLat,
             locationLng,
@@ -119,6 +162,14 @@ export async function POST(req: Request) {
           ],
         );
         postId = row.id;
+        if (saved.length) {
+          const [orderRows] = await pool.query(
+            `SELECT COALESCE(MAX(sort_order), -1) AS m FROM post_media WHERE post_id = ?`,
+            [postId],
+          );
+          const start = Number((orderRows as { m: number }[])[0]?.m ?? -1) + 1;
+          await insertPostMedia(pool, postId, saved, start);
+        }
       }
     }
 
@@ -133,8 +184,8 @@ export async function POST(req: Request) {
           title,
           description,
           species,
-          media?.path ?? null,
-          media?.type ?? null,
+          cover?.path ?? null,
+          cover?.type ?? null,
           location || null,
           locationLat,
           locationLng,
@@ -144,6 +195,9 @@ export async function POST(req: Request) {
         ],
       );
       postId = Number((result as { insertId: number }).insertId);
+      if (saved.length) {
+        await insertPostMedia(pool, postId, saved, 0);
+      }
     }
 
     return NextResponse.json({ ok: true, id: postId });

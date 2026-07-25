@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -11,6 +11,15 @@ const MapPicker = dynamic(
 );
 
 type PetOpt = { id: number; name: string; status: string };
+
+type DraftMedia = {
+  key: string;
+  file: File;
+  url: string;
+  kind: "image" | "video";
+};
+
+const MAX_MEDIA = 8;
 
 export function CreatePostForm({
   userName,
@@ -32,8 +41,8 @@ export function CreatePostForm({
   const [locationText, setLocationText] = useState("");
   const [locationLat, setLocationLat] = useState<number | null>(null);
   const [locationLng, setLocationLng] = useState<number | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [hasMedia, setHasMedia] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(true);
+  const [drafts, setDrafts] = useState<DraftMedia[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,19 +54,71 @@ export function CreatePostForm({
     [type],
   );
 
-  function applyMedia(file: File | null | undefined) {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    if (!file) {
-      setPreviewUrl(null);
-      setHasMedia(false);
-      return;
-    }
-    setHasMedia(true);
-    if (file.type.startsWith("image/")) {
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setPreviewUrl(null);
-    }
+  useEffect(() => {
+    return () => {
+      drafts.forEach((d) => URL.revokeObjectURL(d.url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function addFiles(fileList: FileList | File[] | null | undefined) {
+    if (!fileList) return;
+    const incoming = Array.from(fileList).filter((f) => f && f.size > 0);
+    if (!incoming.length) return;
+
+    setDrafts((prev) => {
+      const next = [...prev];
+      for (const file of incoming) {
+        if (next.length >= MAX_MEDIA) break;
+        const kind = file.type.startsWith("video/")
+          ? "video"
+          : file.type.startsWith("image/")
+            ? "image"
+            : null;
+        if (!kind) continue;
+        next.push({
+          key: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
+          file,
+          url: URL.createObjectURL(file),
+          kind,
+        });
+      }
+      return next;
+    });
+    setStatus("Media ready — reorder or remove before publishing");
+  }
+
+  function removeDraft(key: string) {
+    setDrafts((prev) => {
+      const target = prev.find((d) => d.key === key);
+      if (target) URL.revokeObjectURL(target.url);
+      return prev.filter((d) => d.key !== key);
+    });
+  }
+
+  function moveDraft(key: string, dir: -1 | 1) {
+    setDrafts((prev) => {
+      const index = prev.findIndex((d) => d.key === key);
+      if (index < 0) return prev;
+      const nextIndex = index + dir;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      copy.splice(nextIndex, 0, item!);
+      return copy;
+    });
+  }
+
+  function setAsCover(key: string) {
+    setDrafts((prev) => {
+      const index = prev.findIndex((d) => d.key === key);
+      if (index <= 0) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      copy.unshift(item!);
+      return copy;
+    });
+    setStatus("Cover updated");
   }
 
   async function fillLocationFromGps(): Promise<boolean> {
@@ -67,6 +128,7 @@ export function CreatePostForm({
     }
     setGpsBusy(true);
     setStatus("Getting location…");
+    setLocationOpen(true);
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -87,6 +149,7 @@ export function CreatePostForm({
       if (data.ok && data.results?.[0]?.label) {
         setLocationText(data.results[0].label);
         setStatus("Location set");
+        setLocationOpen(false);
       } else {
         setStatus("GPS pin set — confirm on the map");
       }
@@ -105,29 +168,6 @@ export function CreatePostForm({
     cameraRef.current?.click();
   }
 
-  function onGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file && cameraRef.current) cameraRef.current.value = "";
-    applyMedia(file);
-    if (file) setStatus("Photo ready");
-  }
-
-  function onCameraChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file && galleryRef.current) galleryRef.current.value = "";
-    applyMedia(file);
-    if (file) {
-      setStatus(locationText.trim() ? "Photo & location ready" : "Photo ready — set location below");
-    }
-  }
-
-  function clearMedia() {
-    if (cameraRef.current) cameraRef.current.value = "";
-    if (galleryRef.current) galleryRef.current.value = "";
-    applyMedia(null);
-    setStatus(null);
-  }
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -137,15 +177,15 @@ export function CreatePostForm({
     form.set("location_text", locationText.trim());
     if (locationLat != null) form.set("location_lat", String(locationLat));
     if (locationLng != null) form.set("location_lng", String(locationLng));
-
-    const cameraFile = cameraRef.current?.files?.[0];
-    const galleryFile = galleryRef.current?.files?.[0];
-    const chosen = cameraFile || galleryFile;
-    if (chosen) form.set("media", chosen);
+    form.delete("media");
+    for (const draft of drafts) {
+      form.append("media", draft.file);
+    }
 
     if (alert && !locationText.trim()) {
       setError("Add a location for Found / Missing alerts.");
       setLoading(false);
+      setLocationOpen(true);
       return;
     }
 
@@ -164,6 +204,8 @@ export function CreatePostForm({
       setLoading(false);
     }
   }
+
+  const locationSummary = locationText.trim() || "Add address or pin";
 
   return (
     <form onSubmit={onSubmit} className="form-grid create-post-form">
@@ -209,13 +251,18 @@ export function CreatePostForm({
       </section>
 
       <section className="create-section">
-        <h2 className="create-section__title">Photo</h2>
+        <h2 className="create-section__title">
+          Photos &amp; video
+          <span className="create-count">
+            {drafts.length}/{MAX_MEDIA}
+          </span>
+        </h2>
         <div className="create-media-actions">
           <button
             type="button"
             className="btn btn-amber"
             onClick={() => void onTakePhotoClick()}
-            disabled={gpsBusy}
+            disabled={gpsBusy || drafts.length >= MAX_MEDIA}
           >
             {gpsBusy ? "Locating…" : "Take photo"}
           </button>
@@ -223,15 +270,10 @@ export function CreatePostForm({
             type="button"
             className="btn btn-outline"
             onClick={() => galleryRef.current?.click()}
-            disabled={gpsBusy}
+            disabled={gpsBusy || drafts.length >= MAX_MEDIA}
           >
-            Gallery
+            Add media
           </button>
-          {hasMedia ? (
-            <button type="button" className="btn btn-outline create-media-clear" onClick={clearMedia}>
-              Remove
-            </button>
-          ) : null}
         </div>
         <input
           ref={cameraRef}
@@ -240,60 +282,120 @@ export function CreatePostForm({
           capture="environment"
           className="sr-only"
           aria-label="Take photo with camera"
-          onChange={onCameraChange}
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
         />
         <input
           ref={galleryRef}
           type="file"
           accept="image/*,video/mp4,video/webm,video/quicktime"
+          multiple
           className="sr-only"
-          aria-label="Choose photo or video from gallery"
-          onChange={onGalleryChange}
+          aria-label="Choose photos or videos"
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
         />
-        {previewUrl ? (
-          <div className="create-media-preview-wrap">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Selected media preview" className="create-media-preview" />
-            <span className="create-media-badge">Ready</span>
-          </div>
-        ) : hasMedia ? (
-          <p className="create-status">Video selected</p>
+        {drafts.length === 0 ? (
+          <p className="create-hint">Add up to {MAX_MEDIA} photos or videos. First item is the cover.</p>
         ) : (
-          <p className="create-hint">Take photo sets location first, then opens the camera.</p>
+          <ul className="create-media-grid">
+            {drafts.map((item, index) => (
+              <li key={item.key} className="create-media-item">
+                {item.kind === "video" ? (
+                  <video src={item.url} muted playsInline preload="metadata" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={item.url} alt="" />
+                )}
+                {index === 0 ? <span className="create-media-badge">Cover</span> : null}
+                {item.kind === "video" ? (
+                  <span className="create-media-badge create-media-badge--video">Video</span>
+                ) : null}
+                <div className="create-media-item__actions">
+                  <button type="button" onClick={() => moveDraft(item.key, -1)} disabled={index === 0}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveDraft(item.key, 1)}
+                    disabled={index === drafts.length - 1}
+                  >
+                    ↓
+                  </button>
+                  {index > 0 ? (
+                    <button type="button" onClick={() => setAsCover(item.key)}>
+                      Cover
+                    </button>
+                  ) : null}
+                  <button type="button" className="is-danger" onClick={() => removeDraft(item.key)}>
+                    Remove
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
+        {status ? <p className="create-status">{status}</p> : null}
       </section>
 
-      <section className="create-section">
-        <h2 className="create-section__title">
-          Location {alert ? <span className="create-required">Required</span> : null}
-        </h2>
-        <label className="create-location-label">
-          <span className="sr-only">Address</span>
-          <input
-            name="location_text"
-            value={locationText}
-            onChange={(e) => setLocationText(e.target.value)}
-            placeholder="Address or landmark"
-            required={alert}
-          />
-        </label>
-        {status ? <p className="create-status">{status}</p> : null}
-        <MapPicker
-          latName="location_lat"
-          lngName="location_lng"
-          initialLat={locationLat}
-          initialLng={locationLng}
-          searchPlaceholder="Search place"
-          quiet
-          onLabel={(label) => {
-            setLocationText(label);
-            setStatus("Location set");
-          }}
-          onCoords={(lat, lng) => {
-            setLocationLat(lat);
-            setLocationLng(lng);
-          }}
-        />
+      <section className="create-section create-location">
+        <button
+          type="button"
+          className="create-collapse-head"
+          onClick={() => setLocationOpen((o) => !o)}
+          aria-expanded={locationOpen}
+        >
+          <span className="create-section__title">
+            Location {alert ? <span className="create-required">Required</span> : null}
+          </span>
+          <span className="create-collapse-summary">{locationSummary}</span>
+          <span className="create-collapse-chevron" aria-hidden>
+            {locationOpen ? "▾" : "▸"}
+          </span>
+        </button>
+
+        {locationOpen ? (
+          <div className="create-collapse-body">
+            <label className="create-location-label">
+              <span className="sr-only">Address</span>
+              <input
+                name="location_text"
+                value={locationText}
+                onChange={(e) => setLocationText(e.target.value)}
+                placeholder="Address or landmark"
+                required={alert}
+              />
+            </label>
+            <MapPicker
+              latName="location_lat"
+              lngName="location_lng"
+              initialLat={locationLat}
+              initialLng={locationLng}
+              searchPlaceholder="Search place"
+              quiet
+              onLabel={(label) => {
+                setLocationText(label);
+                setStatus("Location set");
+              }}
+              onCoords={(lat, lng) => {
+                setLocationLat(lat);
+                setLocationLng(lng);
+              }}
+            />
+          </div>
+        ) : (
+          <input type="hidden" name="location_text" value={locationText} />
+        )}
+        {!locationOpen ? (
+          <>
+            <input type="hidden" name="location_lat" value={locationLat ?? ""} readOnly />
+            <input type="hidden" name="location_lng" value={locationLng ?? ""} readOnly />
+          </>
+        ) : null}
       </section>
 
       {alert ? (

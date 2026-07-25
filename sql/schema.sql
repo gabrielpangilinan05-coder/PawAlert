@@ -100,6 +100,17 @@ CREATE TABLE posts (
     INDEX idx_posts_hidden (hidden_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE post_media (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    post_id INT UNSIGNED NOT NULL,
+    file_path VARCHAR(255) NOT NULL,
+    media_type ENUM('image','video') NOT NULL DEFAULT 'image',
+    sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_post_media_post FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+    INDEX idx_post_media_post (post_id, sort_order)
+) ENGINE=InnoDB;
+
 CREATE TABLE reports (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     reporter_id INT UNSIGNED DEFAULT NULL,
