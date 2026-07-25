@@ -31,6 +31,10 @@ export async function POST(req: Request) {
     const description = String(form.get("description") || "").trim();
     const species = normalizeSpecies(String(form.get("species") || "Other"));
     const location = String(form.get("location_text") || "").trim();
+    const locationLatRaw = Number(form.get("location_lat"));
+    const locationLngRaw = Number(form.get("location_lng"));
+    const locationLat = Number.isFinite(locationLatRaw) ? locationLatRaw : null;
+    const locationLng = Number.isFinite(locationLngRaw) ? locationLngRaw : null;
     const contactName = String(form.get("contact_name") || "").trim() || user?.name || null;
     const contactPhone = String(form.get("contact_phone") || "").trim();
     const contactEmail = String(form.get("contact_email") || "").trim().toLowerCase();
@@ -39,6 +43,12 @@ export async function POST(req: Request) {
 
     if (!title || !description) {
       return NextResponse.json({ error: "Title and description are required." }, { status: 400 });
+    }
+    if (alert && !location) {
+      return NextResponse.json(
+        { error: "Add a location so people know where the pet was seen." },
+        { status: 400 },
+      );
     }
     if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
       return NextResponse.json({ error: "Enter a valid contact email." }, { status: 400 });
@@ -68,8 +78,12 @@ export async function POST(req: Request) {
         petId = Number(petIdRaw);
         if (type === "missing") {
           await pool.execute(
-            `UPDATE pets SET status = 'missing', last_seen_text = COALESCE(?, last_seen_text) WHERE id = ?`,
-            [location || null, petId],
+            `UPDATE pets SET status = 'missing',
+             last_seen_text = COALESCE(?, last_seen_text),
+             last_seen_lat = COALESCE(?, last_seen_lat),
+             last_seen_lng = COALESCE(?, last_seen_lng)
+             WHERE id = ?`,
+            [location || null, locationLat, locationLng, petId],
           );
         }
       }
@@ -86,7 +100,8 @@ export async function POST(req: Request) {
         await pool.execute(
           `UPDATE posts SET title = ?, description = ?, species = ?,
            photo_path = COALESCE(?, photo_path), media_type = COALESCE(?, media_type),
-           location_text = ?, contact_name = ?, contact_phone = ?, contact_email = ?,
+           location_text = ?, location_lat = ?, location_lng = ?,
+           contact_name = ?, contact_phone = ?, contact_email = ?,
            updated_at = NOW() WHERE id = ?`,
           [
             title,
@@ -95,6 +110,8 @@ export async function POST(req: Request) {
             media?.path ?? null,
             media?.type ?? null,
             location || null,
+            locationLat,
+            locationLng,
             contactName,
             alert && contactPhone ? contactPhone : null,
             alert && contactEmail ? contactEmail : null,
@@ -107,8 +124,8 @@ export async function POST(req: Request) {
 
     if (postId === null) {
       const [result] = await pool.execute(
-        `INSERT INTO posts (user_id, pet_id, type, title, description, species, photo_path, media_type, location_text, contact_name, contact_phone, contact_email)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO posts (user_id, pet_id, type, title, description, species, photo_path, media_type, location_text, location_lat, location_lng, contact_name, contact_phone, contact_email)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user?.id ?? null,
           petId,
@@ -119,6 +136,8 @@ export async function POST(req: Request) {
           media?.path ?? null,
           media?.type ?? null,
           location || null,
+          locationLat,
+          locationLng,
           contactName,
           alert && contactPhone ? contactPhone : null,
           alert && contactEmail ? contactEmail : null,

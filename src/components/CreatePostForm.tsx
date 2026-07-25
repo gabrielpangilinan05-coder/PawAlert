@@ -1,8 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+
+const MapPicker = dynamic(
+  () => import("@/components/MapPicker").then((m) => m.MapPicker),
+  { ssr: false, loading: () => <p className="muted">Loading map…</p> },
+);
 
 type PetOpt = { id: number; name: string; status: string };
 
@@ -20,7 +26,14 @@ export function CreatePostForm({
   defaultType?: string;
 }) {
   const router = useRouter();
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const galleryRef = useRef<HTMLInputElement | null>(null);
   const [type, setType] = useState(defaultType);
+  const [locationText, setLocationText] = useState("");
+  const [locationLat, setLocationLat] = useState<number | null>(null);
+  const [locationLng, setLocationLng] = useState<number | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [mediaLabel, setMediaLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const alert = type === "found" || type === "missing";
@@ -30,12 +43,56 @@ export function CreatePostForm({
     [type],
   );
 
+  function applyMedia(file: File | null | undefined) {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (!file) {
+      setPreviewUrl(null);
+      setMediaLabel(null);
+      return;
+    }
+    setMediaLabel(file.name);
+    if (file.type.startsWith("image/")) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
+  }
+
+  function onGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file && cameraRef.current) cameraRef.current.value = "";
+    applyMedia(file);
+  }
+
+  function onCameraChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file && galleryRef.current) galleryRef.current.value = "";
+    applyMedia(file);
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     const form = new FormData(e.currentTarget);
     form.set("type", type);
+    form.set("location_text", locationText.trim());
+    if (locationLat != null) form.set("location_lat", String(locationLat));
+    if (locationLng != null) form.set("location_lng", String(locationLng));
+
+    const cameraFile = cameraRef.current?.files?.[0];
+    const galleryFile = galleryRef.current?.files?.[0];
+    const chosen = cameraFile || galleryFile;
+    if (chosen) {
+      form.set("media", chosen);
+    }
+
+    if (alert && !locationText.trim()) {
+      setError("Add a location (search, GPS, or type an address).");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/posts", { method: "POST", body: form });
       const data = await res.json();
@@ -53,7 +110,7 @@ export function CreatePostForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="form-grid">
+    <form onSubmit={onSubmit} className="form-grid create-post-form">
       {error && <div className="flash flash-error">{error}</div>}
       <label>
         Post type
@@ -77,10 +134,74 @@ export function CreatePostForm({
         Species
         <input name="species" defaultValue="Dog" list="species-list" />
       </label>
+
+      <div className="create-media-block">
+        <p style={{ margin: "0 0 0.45rem", fontWeight: 700 }}>Photo / video</p>
+        <div className="create-media-actions">
+          <button
+            type="button"
+            className="btn btn-amber"
+            onClick={() => cameraRef.current?.click()}
+          >
+            Take photo
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => galleryRef.current?.click()}
+          >
+            Choose from gallery
+          </button>
+        </div>
+        <input
+          ref={cameraRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          aria-label="Take photo with camera"
+          onChange={onCameraChange}
+        />
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*,video/mp4,video/webm,video/quicktime"
+          className="sr-only"
+          aria-label="Choose photo or video from gallery"
+          onChange={onGalleryChange}
+        />
+        <span className="muted">
+          On phone, Take photo opens the camera. Photos ≤ 5MB · Videos ≤ 20MB.
+        </span>
+        {mediaLabel ? <p className="create-media-name">{mediaLabel}</p> : null}
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="Selected media preview" className="create-media-preview" />
+        ) : null}
+      </div>
+
       <label>
-        Location
-        <input name="location_text" placeholder="Town / landmark" />
+        Location {alert ? <span className="muted">(required for alerts)</span> : null}
+        <input
+          name="location_text"
+          value={locationText}
+          onChange={(e) => setLocationText(e.target.value)}
+          placeholder="Town / landmark / street"
+          required={alert}
+        />
+        <span className="muted">Search a place, use GPS, or tap the map — address fills automatically.</span>
       </label>
+      <MapPicker
+        latName="location_lat"
+        lngName="location_lng"
+        searchPlaceholder="Search place (e.g. San Jose Malino, Mexico)"
+        onLabel={(label) => setLocationText(label)}
+        onCoords={(lat, lng) => {
+          setLocationLat(lat);
+          setLocationLng(lng);
+        }}
+      />
+
       {showPet && pets.length > 0 && (
         <label>
           Link a pet
@@ -94,10 +215,6 @@ export function CreatePostForm({
           </select>
         </label>
       )}
-      <label>
-        Photo / video
-        <input name="media" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" />
-      </label>
       {alert && (
         <>
           <label>
