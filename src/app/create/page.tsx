@@ -17,9 +17,9 @@ export default async function CreatePostPage({
     <div className="page-wrap">
       <div className="panel create-panel">
         <h1>Create a post</h1>
-        <p className="muted">
-          Share a story, tip, question, or Found / Missing alert with the community.
-          {!user && " Guests can only post Found alerts — log in for other types."}
+        <p className="muted create-lead">
+          Story, tip, or Found / Missing alert.
+          {!user ? " Guests can post Found alerts only." : null}
         </p>
         <CreatePostForm
           userName={user?.name}

@@ -33,8 +33,8 @@ export function CreatePostForm({
   const [locationLat, setLocationLat] = useState<number | null>(null);
   const [locationLng, setLocationLng] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [mediaLabel, setMediaLabel] = useState<string | null>(null);
-  const [locationHint, setLocationHint] = useState<string | null>(null);
+  const [hasMedia, setHasMedia] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,10 +49,10 @@ export function CreatePostForm({
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     if (!file) {
       setPreviewUrl(null);
-      setMediaLabel(null);
+      setHasMedia(false);
       return;
     }
-    setMediaLabel(file.name);
+    setHasMedia(true);
     if (file.type.startsWith("image/")) {
       setPreviewUrl(URL.createObjectURL(file));
     } else {
@@ -60,14 +60,13 @@ export function CreatePostForm({
     }
   }
 
-  /** Get GPS before opening the camera — more reliable on Android than after capture. */
   async function fillLocationFromGps(): Promise<boolean> {
     if (!navigator.geolocation) {
-      setLocationHint("GPS not available — use Search or Use my location on the map.");
+      setStatus("GPS unavailable — search or tap the map.");
       return false;
     }
     setGpsBusy(true);
-    setLocationHint("Getting your location… Allow location, then the camera will open.");
+    setStatus("Getting location…");
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -87,15 +86,13 @@ export function CreatePostForm({
       const data = await res.json();
       if (data.ok && data.results?.[0]?.label) {
         setLocationText(data.results[0].label);
-        setLocationHint("Location ready — opening camera…");
+        setStatus("Location set");
       } else {
-        setLocationHint("GPS pin set — opening camera…");
+        setStatus("GPS pin set — confirm on the map");
       }
       return true;
     } catch {
-      setLocationHint(
-        "Could not get GPS (allow Location for this site). Opening camera anyway — use Use my location after.",
-      );
+      setStatus("Location blocked — search or tap the map");
       return false;
     } finally {
       setGpsBusy(false);
@@ -104,7 +101,6 @@ export function CreatePostForm({
 
   async function onTakePhotoClick() {
     await fillLocationFromGps();
-    // Small delay so address/state paint before leaving to the camera app
     await new Promise((r) => window.setTimeout(r, 150));
     cameraRef.current?.click();
   }
@@ -113,17 +109,23 @@ export function CreatePostForm({
     const file = e.target.files?.[0];
     if (file && cameraRef.current) cameraRef.current.value = "";
     applyMedia(file);
+    if (file) setStatus("Photo ready");
   }
 
   function onCameraChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file && galleryRef.current) galleryRef.current.value = "";
     applyMedia(file);
-    if (file && locationText.trim()) {
-      setLocationHint("Photo added. Location was set from GPS before the camera.");
-    } else if (file) {
-      setLocationHint("Photo added. Tap Use my location on the map if the address is empty.");
+    if (file) {
+      setStatus(locationText.trim() ? "Photo & location ready" : "Photo ready — set location below");
     }
+  }
+
+  function clearMedia() {
+    if (cameraRef.current) cameraRef.current.value = "";
+    if (galleryRef.current) galleryRef.current.value = "";
+    applyMedia(null);
+    setStatus(null);
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -139,12 +141,10 @@ export function CreatePostForm({
     const cameraFile = cameraRef.current?.files?.[0];
     const galleryFile = galleryRef.current?.files?.[0];
     const chosen = cameraFile || galleryFile;
-    if (chosen) {
-      form.set("media", chosen);
-    }
+    if (chosen) form.set("media", chosen);
 
     if (alert && !locationText.trim()) {
-      setError("Add a location (search, GPS, or type an address).");
+      setError("Add a location for Found / Missing alerts.");
       setLoading(false);
       return;
     }
@@ -167,32 +167,49 @@ export function CreatePostForm({
 
   return (
     <form onSubmit={onSubmit} className="form-grid create-post-form">
-      {error && <div className="flash flash-error">{error}</div>}
-      <label>
-        Post type
-        <select value={type} onChange={(e) => setType(e.target.value)}>
-          <option value="story">Pet story</option>
-          <option value="tip">Care tip</option>
-          <option value="question">Question</option>
-          <option value="found">Found</option>
-          <option value="missing">Missing</option>
-        </select>
-      </label>
-      <label>
-        Title
-        <input name="title" required />
-      </label>
-      <label>
-        Description
-        <textarea name="description" rows={5} required />
-      </label>
-      <label>
-        Species
-        <input name="species" defaultValue="Dog" list="species-list" />
-      </label>
+      {error ? <div className="flash flash-error">{error}</div> : null}
 
-      <div className="create-media-block">
-        <p style={{ margin: "0 0 0.45rem", fontWeight: 700 }}>Photo / video</p>
+      <section className="create-section">
+        <h2 className="create-section__title">Details</h2>
+        <label>
+          Post type
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="story">Pet story</option>
+            <option value="tip">Care tip</option>
+            <option value="question">Question</option>
+            <option value="found">Found</option>
+            <option value="missing">Missing</option>
+          </select>
+        </label>
+        <label>
+          Title
+          <input name="title" required placeholder="Short headline" />
+        </label>
+        <label>
+          Description
+          <textarea name="description" rows={4} required placeholder="What should people know?" />
+        </label>
+        <label>
+          Species
+          <input name="species" defaultValue="Dog" list="species-list" />
+        </label>
+        {showPet && pets.length > 0 ? (
+          <label>
+            Link a pet
+            <select name="pet_id" defaultValue="">
+              <option value="">— optional —</option>
+              {pets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.status})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </section>
+
+      <section className="create-section">
+        <h2 className="create-section__title">Photo</h2>
         <div className="create-media-actions">
           <button
             type="button"
@@ -200,7 +217,7 @@ export function CreatePostForm({
             onClick={() => void onTakePhotoClick()}
             disabled={gpsBusy}
           >
-            {gpsBusy ? "Getting location…" : "Take photo"}
+            {gpsBusy ? "Locating…" : "Take photo"}
           </button>
           <button
             type="button"
@@ -208,8 +225,13 @@ export function CreatePostForm({
             onClick={() => galleryRef.current?.click()}
             disabled={gpsBusy}
           >
-            Choose from gallery
+            Gallery
           </button>
+          {hasMedia ? (
+            <button type="button" className="btn btn-outline create-media-clear" onClick={clearMedia}>
+              Remove
+            </button>
+          ) : null}
         </div>
         <input
           ref={cameraRef}
@@ -228,80 +250,78 @@ export function CreatePostForm({
           aria-label="Choose photo or video from gallery"
           onChange={onGalleryChange}
         />
-        <span className="muted">
-          Take photo asks for GPS first (Allow), then opens the camera. Photos ≤ 5MB · Videos ≤
-          20MB.
-        </span>
-        {mediaLabel ? <p className="create-media-name">{mediaLabel}</p> : null}
         {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="Selected media preview" className="create-media-preview" />
-        ) : null}
-      </div>
+          <div className="create-media-preview-wrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={previewUrl} alt="Selected media preview" className="create-media-preview" />
+            <span className="create-media-badge">Ready</span>
+          </div>
+        ) : hasMedia ? (
+          <p className="create-status">Video selected</p>
+        ) : (
+          <p className="create-hint">Take photo sets location first, then opens the camera.</p>
+        )}
+      </section>
 
-      <label>
-        Location {alert ? <span className="muted">(required for alerts)</span> : null}
-        <input
-          name="location_text"
-          value={locationText}
-          onChange={(e) => setLocationText(e.target.value)}
-          placeholder="Town / landmark / street"
-          required={alert}
-        />
-        <span className="muted">
-          {locationHint ||
-            "Take photo gets GPS first, then camera — or search / Use my location / tap the map."}
-        </span>
-      </label>
-      <MapPicker
-        latName="location_lat"
-        lngName="location_lng"
-        initialLat={locationLat}
-        initialLng={locationLng}
-        searchPlaceholder="Search place (e.g. San Jose Malino, Mexico)"
-        onLabel={(label) => setLocationText(label)}
-        onCoords={(lat, lng) => {
-          setLocationLat(lat);
-          setLocationLng(lng);
-        }}
-      />
-
-      {showPet && pets.length > 0 && (
-        <label>
-          Link a pet
-          <select name="pet_id" defaultValue="">
-            <option value="">— none —</option>
-            {pets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.status})
-              </option>
-            ))}
-          </select>
+      <section className="create-section">
+        <h2 className="create-section__title">
+          Location {alert ? <span className="create-required">Required</span> : null}
+        </h2>
+        <label className="create-location-label">
+          <span className="sr-only">Address</span>
+          <input
+            name="location_text"
+            value={locationText}
+            onChange={(e) => setLocationText(e.target.value)}
+            placeholder="Address or landmark"
+            required={alert}
+          />
         </label>
-      )}
-      {alert && (
-        <>
+        {status ? <p className="create-status">{status}</p> : null}
+        <MapPicker
+          latName="location_lat"
+          lngName="location_lng"
+          initialLat={locationLat}
+          initialLng={locationLng}
+          searchPlaceholder="Search place"
+          quiet
+          onLabel={(label) => {
+            setLocationText(label);
+            setStatus("Location set");
+          }}
+          onCoords={(lat, lng) => {
+            setLocationLat(lat);
+            setLocationLng(lng);
+          }}
+        />
+      </section>
+
+      {alert ? (
+        <section className="create-section">
+          <h2 className="create-section__title">Contact</h2>
           <label>
-            Contact name
+            Name
             <input name="contact_name" defaultValue={userName || ""} />
           </label>
           <label>
-            Contact phone
+            Phone
             <input name="contact_phone" defaultValue={userPhone || ""} />
           </label>
           <label>
-            Contact email
+            Email
             <input name="contact_email" type="email" defaultValue={userEmail || ""} />
           </label>
-        </>
-      )}
+        </section>
+      ) : null}
+
       <datalist id="species-list">
         {["Dog", "Cat", "Bird", "Horse", "Rabbit", "Reptile", "Ferret", "Other"].map((s) => (
           <option key={s} value={s} />
         ))}
       </datalist>
-      <div className="form-actions">
-        <button className="btn btn-amber" type="submit" disabled={loading}>
+
+      <div className="form-actions create-actions">
+        <button className="btn btn-amber" type="submit" disabled={loading || gpsBusy}>
           {loading ? "Publishing…" : "Publish"}
         </button>
         <Link className="btn btn-outline" href="/feed">

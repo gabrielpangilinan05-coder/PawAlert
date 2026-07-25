@@ -12,6 +12,8 @@ type Props = {
   onLabel?: (label: string) => void;
   onCoords?: (lat: number | null, lng: number | null) => void;
   searchPlaceholder?: string;
+  /** Hide verbose map status line (parent shows its own status). */
+  quiet?: boolean;
 };
 
 export function MapPicker({
@@ -22,6 +24,7 @@ export function MapPicker({
   onLabel,
   onCoords,
   searchPlaceholder = "Search place",
+  quiet = false,
 }: Props) {
   const mapEl = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -34,7 +37,9 @@ export function MapPicker({
   const [lat, setLat] = useState<number | null>(initialLat);
   const [lng, setLng] = useState<number | null>(initialLng);
   const [busy, setBusy] = useState(false);
-  const [hint, setHint] = useState("Search a place, use GPS, or tap the map.");
+  const [hint, setHint] = useState(
+    quiet ? "" : "Search a place, use GPS, or tap the map.",
+  );
   const [expanded, setExpanded] = useState(false);
 
   onLabelRef.current = onLabel;
@@ -246,7 +251,7 @@ export function MapPicker({
           Search
         </button>
         <button type="button" className="btn btn-small btn-outline" onClick={useGps} disabled={busy}>
-          Use my location
+          {busy ? "…" : "GPS"}
         </button>
       </div>
       {results.length > 0 && (
@@ -280,7 +285,10 @@ export function MapPicker({
           </button>
         ) : null}
       </div>
-      <p className="map-coords-hint muted">{hint}</p>
+      {!quiet && hint ? <p className="map-coords-hint muted">{hint}</p> : null}
+      {quiet && hint && (busy || hint.toLowerCase().includes("could not")) ? (
+        <p className="map-coords-hint muted">{hint}</p>
+      ) : null}
     </div>
   );
 }
