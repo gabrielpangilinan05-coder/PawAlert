@@ -211,6 +211,7 @@ export default async function FeedPage({
                     liked={liked.has(post.id)}
                     loggedIn={Boolean(user)}
                     currentUserName={user?.name}
+                    currentUserId={user?.id ?? null}
                   />
                 ))}
               </div>

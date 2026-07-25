@@ -9,6 +9,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { alertPinDirectionsUrl } from "@/lib/directions";
 import { relativeTime, userInitial } from "@/lib/format";
 import { resolveOwnerContact } from "@/lib/owner-contact";
+import { cleanPostBody, shortPlace } from "@/lib/post-display";
 import type { FeedPost } from "@/lib/posts";
 import { useUnseenCount } from "@/lib/unseen";
 import {
@@ -45,7 +46,7 @@ function badgeClass(type: string, status: string): string {
   return type;
 }
 
-function excerpt(text: string, limit = 280): string {
+function excerpt(text: string, limit = 160): string {
   const t = text.trim();
   if (t.length <= limit) return t;
   return `${t.slice(0, limit - 1).trimEnd()}…`;
@@ -56,11 +57,13 @@ export function SocialCard({
   liked: initialLiked,
   loggedIn,
   currentUserName,
+  currentUserId,
 }: {
   post: FeedPost;
   liked: boolean;
   loggedIn: boolean;
   currentUserName?: string | null;
+  currentUserId?: number | null;
 }) {
   const router = useRouter();
   const [liked, setLiked] = useState(initialLiked);
@@ -84,8 +87,6 @@ export function SocialCard({
       ? "/icons/icon-512.png"
       : null);
   const title = post.title;
-  const body = post.description;
-  const showTitle = title !== "" && !body.trim().toLowerCase().startsWith(title.toLowerCase());
   const when = relativeTime(post.created_at);
   const meName = currentUserName?.trim() || "friend";
   const shareDetails = useMemo(() => shareDetailsFromFeedPost(post), [post]);
@@ -101,15 +102,37 @@ export function SocialCard({
         ? "is-found"
         : "";
   const location = (post.pet_last_seen_text || post.location_text || "").trim();
+  const locationShort = shortPlace(location);
   const petName = post.pet_name?.trim() || null;
+  const species = String(post.species || "").trim();
+  const breed = post.pet_breed != null ? String(post.pet_breed).trim() : "";
+  const body = useMemo(
+    () =>
+      cleanPostBody(post.description, {
+        locationText: location,
+        species,
+        breed,
+      }),
+    [post.description, location, species, breed],
+  );
+  const bodyExcerpt = excerpt(body);
+
+  const titleNorm = title.trim().toLowerCase();
+  const petNorm = (petName || "").toLowerCase();
+  const redundantTitle =
+    !titleNorm ||
+    (petNorm &&
+      (titleNorm === petNorm ||
+        titleNorm === `${petNorm} is missing` ||
+        titleNorm === `${petNorm} found` ||
+        titleNorm === `found ${petNorm}`)) ||
+    (body && body.trim().toLowerCase().startsWith(titleNorm));
+  const showTitle = Boolean(title) && !redundantTitle && !(isAlert && petName);
+
   const owner = resolveOwnerContact(post);
-  const contactHref = owner.phone
-    ? `tel:${owner.phone}`
-    : owner.messengerHref
-      ? owner.messengerHref
-      : owner.email
-        ? `mailto:${owner.email}`
-        : null;
+  const ownerUserId = Number(post.user_id) || 0;
+  const canMessageOwner =
+    ownerUserId > 0 && (!currentUserId || currentUserId !== ownerUserId);
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
   const directionsHref = owner.homeDirections || alertPinDirectionsUrl(post);
 
@@ -245,10 +268,19 @@ export function SocialCard({
         </Link>
       ) : null}
 
-      {isAlert && (petName || location) ? (
+      {isAlert && (petName || locationShort) ? (
         <div className="social-alert-meta">
           {petName ? <span className="social-alert-name">{petName}</span> : null}
-          {location ? <span className="social-loc-chip">{location}</span> : null}
+          {species || breed ? (
+            <span className="social-alert-kind">
+              {[species, breed].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
+          {locationShort ? (
+            <span className="social-loc-chip" title={location || undefined}>
+              {locationShort}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
@@ -257,9 +289,7 @@ export function SocialCard({
           <Link href={`/post/${post.id}`}>{title}</Link>
         </h3>
       ) : null}
-      <p className="social-body" style={{ whiteSpace: "pre-wrap" }}>
-        {excerpt(body)}
-      </p>
+      {bodyExcerpt ? <p className="social-body">{bodyExcerpt}</p> : null}
 
       {!isAlert && photo ? (
         <Link className="social-media" href={`/post/${post.id}`}>
@@ -272,21 +302,27 @@ export function SocialCard({
         </Link>
       ) : null}
 
-      {!isAlert && location ? (
-        <p className="social-loc-inline muted">{location}</p>
+      {!isAlert && locationShort ? (
+        <p className="social-loc-inline muted" title={location || undefined}>
+          {locationShort}
+        </p>
       ) : null}
 
       {isAlert ? (
         <div className="social-alert-cta">
-          {contactHref ? (
-            <a className="btn btn-amber" href={contactHref}>
-              Contact owner
-            </a>
-          ) : (
-            <Link className="btn btn-amber" href={profileUrl}>
-              View pet profile
+          {canMessageOwner ? (
+            <Link
+              className="btn btn-amber"
+              href={loggedIn ? `/messages?with=${ownerUserId}` : "/login"}
+            >
+              Message
             </Link>
-          )}
+          ) : null}
+          {owner.phone ? (
+            <a className="btn btn-outline" href={`tel:${owner.phone}`}>
+              Call
+            </a>
+          ) : null}
           {directionsHref ? (
             <a
               className="btn btn-outline"
@@ -294,7 +330,7 @@ export function SocialCard({
               target="_blank"
               rel="noopener noreferrer"
             >
-              {owner.homeDirections ? "Directions home" : "Directions last seen"}
+              Directions
             </a>
           ) : null}
           <Link className="btn btn-outline" href={`/post/${post.id}`}>

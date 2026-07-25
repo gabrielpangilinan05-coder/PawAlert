@@ -59,7 +59,15 @@ export function cleanPostBody(
   });
 
   let out = kept.join(" ").replace(/\s+/g, " ").trim();
-  // Drop leading "Notes:" / "Details:" labels for cleaner copy
+  // Drop "persian Cat Notes:" / "Cat Notes:" style auto prefixes
+  if (species) {
+    const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const lead = breed
+      ? new RegExp(`^${esc(breed)}\\s+${esc(species)}\\s+(Notes|Details):\\s*`, "i")
+      : new RegExp(`^${esc(species)}\\s+(Notes|Details):\\s*`, "i");
+    out = out.replace(lead, "");
+  }
   out = out.replace(/^(Notes|Details):\s*/i, "");
+  out = out.replace(/\bDetails:\s*/gi, "");
   return out;
 }
