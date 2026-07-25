@@ -140,6 +140,16 @@ export function MapPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Sync pin when parent updates coords (e.g. auto-GPS after camera). */
+  useEffect(() => {
+    if (initialLat == null || initialLng == null) return;
+    setLat(initialLat);
+    setLng(initialLng);
+    onCoordsRef.current?.(initialLat, initialLng);
+    markerRef.current?.setLatLng([initialLat, initialLng]);
+    mapRef.current?.setView([initialLat, initialLng], 15);
+  }, [initialLat, initialLng]);
+
   function setPin(nextLat: number, nextLng: number, label?: string) {
     setLat(nextLat);
     setLng(nextLng);

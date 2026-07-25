@@ -34,6 +34,7 @@ export function CreatePostForm({
   const [locationLng, setLocationLng] = useState<number | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaLabel, setMediaLabel] = useState<string | null>(null);
+  const [locationHint, setLocationHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const alert = type === "found" || type === "missing";
@@ -58,6 +59,39 @@ export function CreatePostForm({
     }
   }
 
+  async function fillLocationFromGps() {
+    if (!navigator.geolocation) {
+      setLocationHint("GPS not available — use Search or Use my location on the map.");
+      return;
+    }
+    setLocationHint("Getting your location…");
+    try {
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 12000,
+        });
+      });
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      setLocationLat(lat);
+      setLocationLng(lng);
+
+      const res = await fetch(
+        `/api/geocode?lat=${encodeURIComponent(String(lat))}&lng=${encodeURIComponent(String(lng))}`,
+      );
+      const data = await res.json();
+      if (data.ok && data.results?.[0]?.label) {
+        setLocationText(data.results[0].label);
+        setLocationHint("Location filled from your GPS after the photo.");
+      } else {
+        setLocationHint("Pin set from GPS — type an address if lookup found nothing.");
+      }
+    } catch {
+      setLocationHint("Could not get GPS. Allow location, or use Use my location on the map.");
+    }
+  }
+
   function onGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file && cameraRef.current) cameraRef.current.value = "";
@@ -68,6 +102,7 @@ export function CreatePostForm({
     const file = e.target.files?.[0];
     if (file && galleryRef.current) galleryRef.current.value = "";
     applyMedia(file);
+    if (file) void fillLocationFromGps();
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -171,7 +206,8 @@ export function CreatePostForm({
           onChange={onGalleryChange}
         />
         <span className="muted">
-          On phone, Take photo opens the camera. Photos ≤ 5MB · Videos ≤ 20MB.
+          On phone, Take photo opens the camera and fills your GPS location when allowed. Photos ≤
+          5MB · Videos ≤ 20MB.
         </span>
         {mediaLabel ? <p className="create-media-name">{mediaLabel}</p> : null}
         {previewUrl ? (
@@ -189,11 +225,16 @@ export function CreatePostForm({
           placeholder="Town / landmark / street"
           required={alert}
         />
-        <span className="muted">Search a place, use GPS, or tap the map — address fills automatically.</span>
+        <span className="muted">
+          {locationHint ||
+            "Take photo auto-fills GPS, or search / Use my location / tap the map."}
+        </span>
       </label>
       <MapPicker
         latName="location_lat"
         lngName="location_lng"
+        initialLat={locationLat}
+        initialLng={locationLng}
         searchPlaceholder="Search place (e.g. San Jose Malino, Mexico)"
         onLabel={(label) => setLocationText(label)}
         onCoords={(lat, lng) => {
