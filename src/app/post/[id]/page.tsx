@@ -4,9 +4,11 @@ import { DeletePostButton } from "@/components/DeletePostButton";
 import { LikeCommentBar } from "@/components/LikeCommentBar";
 import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
+import { PostShareButton, postShareKind } from "@/components/PostShareButton";
 import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
 import { alertPinDirectionsUrl } from "@/lib/directions";
+import { appOrigin } from "@/lib/media";
 import { hasOwnerContact, resolveOwnerContact } from "@/lib/owner-contact";
 import { cleanPostBody, shortPlace } from "@/lib/post-display";
 import { getPostById, listPostMedia } from "@/lib/posts";
@@ -115,6 +117,17 @@ export default async function PostPage({
   const hasContact = hasOwnerContact(owner) || Boolean(pinDir);
   const canManage =
     Boolean(user) && (Number(post.user_id) === user!.id || user!.role === "admin");
+
+  const shareKind = postShareKind(String(post.type), String(post.status));
+  const origin = appOrigin();
+  const sharePetName =
+    (post.pet_name ? String(post.pet_name) : null) ||
+    (shareKind !== "post"
+      ? String(post.title).replace(/\s+is missing$/i, "")
+      : String(post.title));
+  const shareUrl = post.pet_slug
+    ? `${origin}/pet/${String(post.pet_slug)}`
+    : `${origin}/post/${postId}`;
 
   const facts: { label: string; value: string }[] = [];
   if (species || petBreed) {
@@ -251,14 +264,34 @@ export default async function PostPage({
             </div>
           ) : null}
 
-          {canManage ? (
-            <div className="alert-contact-actions alert-owner-actions">
-              <Link className="btn btn-outline" href={`/post/${postId}/edit`}>
-                Edit post
-              </Link>
-              <DeletePostButton postId={postId} />
-            </div>
-          ) : null}
+          <div className="alert-contact-actions alert-owner-actions">
+            <PostShareButton
+              className="btn btn-outline"
+              label="Share"
+              details={{
+                petName: sharePetName,
+                species: species || null,
+                breed: petBreed || null,
+                lastSeenText: locationFull || null,
+                lastSeenNotes: body || null,
+                lastSeenAt:
+                  post.pet_last_seen_at != null
+                    ? String(post.pet_last_seen_at)
+                    : String(post.created_at),
+                publicUrl: shareUrl,
+                photoUrl: photo,
+                kind: shareKind,
+              }}
+            />
+            {canManage ? (
+              <>
+                <Link className="btn btn-outline" href={`/post/${postId}/edit`}>
+                  Edit post
+                </Link>
+                <DeletePostButton postId={postId} />
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
 

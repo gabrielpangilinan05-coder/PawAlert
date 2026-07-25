@@ -107,6 +107,15 @@ export function shareDetailsFromFeedPost(post: FeedPost): ShareAlertDetails {
   };
 }
 
+type ShareTarget = {
+  key: string;
+  label: string;
+  tone: string;
+  href?: string;
+  onClick?: () => void;
+  external?: boolean;
+};
+
 export function ShareAlertDialog({
   open,
   onClose,
@@ -120,7 +129,8 @@ export function ShareAlertDialog({
   onShared?: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"link" | "full" | null>(null);
+  const [caption, setCaption] = useState("");
   const kind = details.kind || "missing";
   const isLocal = /localhost|127\.0\.0\.1|192\.168\.|10\./i.test(details.publicUrl);
   const isPublic = !isLocal;
@@ -131,31 +141,34 @@ export function ShareAlertDialog({
       : kind === "post"
         ? details.petName
         : `${details.petName} is missing`;
-  const shareMessage = useMemo(() => buildMissingShareMessage(details), [details]);
+  const baseMessage = useMemo(() => buildMissingShareMessage(details), [details]);
+  const shareMessage = useMemo(() => {
+    const note = caption.trim();
+    if (!note) return baseMessage;
+    return `${note}\n\n${baseMessage}`;
+  }, [baseMessage, caption]);
   const whenLabel = formatWhen(details.lastSeenAt);
 
-  const kicker =
-    kind === "found" ? "Found alert" : kind === "post" ? "Share post" : "Missing alert";
   const badge =
-    kind === "found" ? "FOUND ALERT" : kind === "post" ? "PAWALERT" : "MISSING ALERT";
-  const copyLabel = kind === "post" ? "Copy post" : "Copy full alert";
+    kind === "found" ? "FOUND" : kind === "post" ? "POST" : "MISSING";
 
   useEffect(() => {
     const el = dialogRef.current;
     if (!el) return;
     if (open) {
       if (!el.open) el.showModal();
-      setCopied(false);
+      setCopied(null);
+      setCaption("");
     } else if (el.open) {
       el.close();
     }
   }, [open]);
 
-  async function copyFullAlert() {
+  async function copyText(text: string, mode: "link" | "full") {
     try {
-      await navigator.clipboard.writeText(shareMessage);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2200);
+      await navigator.clipboard.writeText(text);
+      setCopied(mode);
+      setTimeout(() => setCopied(null), 2200);
       onShared?.();
       return true;
     } catch {
@@ -177,13 +190,13 @@ export function ShareAlertDialog({
         /* cancelled */
       }
     }
-    await copyFullAlert();
+    await copyText(shareMessage, "full");
   }
 
   function guardLocal(e: MouseEvent<HTMLAnchorElement>) {
     if (isLocal) {
       e.preventDefault();
-      void copyFullAlert();
+      void copyText(shareMessage, "full");
       return;
     }
     onShared?.();
@@ -193,33 +206,100 @@ export function ShareAlertDialog({
   const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(details.publicUrl)}&quote=${encodeURIComponent(quote)}`;
   const messengerUrl = `https://www.facebook.com/dialog/send?link=${encodeURIComponent(details.publicUrl)}&app_id=966242223397117&redirect_uri=${encodeURIComponent(details.publicUrl)}`;
   const xUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareMessage)}`;
+  const waUrl = `https://wa.me/?text=${encodeURIComponent(shareMessage)}`;
+  const smsUrl = `sms:?&body=${encodeURIComponent(shareMessage)}`;
+  const viberUrl = `viber://forward?text=${encodeURIComponent(shareMessage)}`;
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(details.publicUrl)}&text=${encodeURIComponent(quote || shareTitle)}`;
+  const mailUrl = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareMessage)}`;
+
+  const targets: ShareTarget[] = [
+    {
+      key: "messenger",
+      label: "Messenger",
+      tone: "messenger",
+      href: isPublic ? messengerUrl : "#",
+      external: isPublic,
+    },
+    {
+      key: "whatsapp",
+      label: "WhatsApp",
+      tone: "whatsapp",
+      href: waUrl,
+      external: true,
+    },
+    {
+      key: "facebook",
+      label: "Facebook",
+      tone: "facebook",
+      href: isPublic ? fbUrl : "#",
+      external: isPublic,
+    },
+    {
+      key: "x",
+      label: "X",
+      tone: "x",
+      href: xUrl,
+      external: true,
+    },
+    {
+      key: "telegram",
+      label: "Telegram",
+      tone: "telegram",
+      href: telegramUrl,
+      external: true,
+    },
+    {
+      key: "sms",
+      label: "Messages",
+      tone: "sms",
+      href: smsUrl,
+    },
+    {
+      key: "viber",
+      label: "Viber",
+      tone: "viber",
+      href: viberUrl,
+    },
+    {
+      key: "email",
+      label: "Email",
+      tone: "email",
+      href: mailUrl,
+    },
+    {
+      key: "copy",
+      label: copied === "link" ? "Copied" : "Copy link",
+      tone: "copy",
+      onClick: () => void copyText(details.publicUrl, "link"),
+    },
+    {
+      key: "more",
+      label: "More",
+      tone: "more",
+      onClick: () => void nativeShare(),
+    },
+  ];
 
   return (
     <dialog
       ref={dialogRef}
       className="pa-share"
-      data-ui="share-v8"
+      data-ui="share-sheet-v1"
       onClose={onClose}
       onClick={(e) => {
         if (e.target === dialogRef.current) onClose();
       }}
     >
       <div className="pa-share__panel">
-        <header className="pa-share__head">
-          <div>
-            <p className="pa-share__kicker">{kicker}</p>
-            <h2 className="pa-share__title">Share {details.petName}</h2>
-            <p className="pa-share__lead">
-              Opens with full details + link so the preview card can load.
-            </p>
-          </div>
+        <header className="pa-share__sheet-head">
+          <h2 className="pa-share__sheet-title">Share</h2>
           <button type="button" className="pa-share__x" aria-label="Close" onClick={onClose}>
             ×
           </button>
         </header>
 
-        <div className="pa-share__body">
-          <article className="pa-share__preview" aria-label="Share preview">
+        <div className="pa-share__body pa-share__body--sheet">
+          <article className="pa-share__preview pa-share__preview--compact" aria-label="Share preview">
             <div className="pa-share__preview-card">
               <div className="pa-share__preview-photo">
                 {details.photoUrl ? (
@@ -232,130 +312,130 @@ export function ShareAlertDialog({
               <div className="pa-share__preview-copy">
                 <div className="pa-share__preview-badge">{badge}</div>
                 <h3 className="pa-share__preview-title">{shareTitle}</h3>
-                <ul className="pa-share__preview-list">
-                  {[details.species, details.breed].filter(Boolean).length > 0 ? (
-                    <li>{[details.species, details.breed].filter(Boolean).join(" · ")}</li>
-                  ) : null}
-                  {details.lastSeenText ? (
-                    <li>
-                      <strong>{kind === "found" ? "Location:" : kind === "post" ? "Place:" : "Last seen:"}</strong>{" "}
-                      {details.lastSeenText}
-                    </li>
-                  ) : null}
-                  {details.lastSeenNotes ? (
-                    <li>
-                      <strong>Details:</strong> {details.lastSeenNotes}
-                    </li>
-                  ) : null}
-                  {whenLabel ? (
-                    <li>
-                      <strong>Date &amp; time:</strong> {whenLabel}
-                    </li>
-                  ) : null}
-                </ul>
+                {details.lastSeenText ? (
+                  <p className="pa-share__preview-place">{details.lastSeenText}</p>
+                ) : null}
+                {whenLabel ? <p className="pa-share__preview-when">{whenLabel}</p> : null}
                 <p className="pa-share__preview-foot">pawalert · help bring them home</p>
               </div>
             </div>
             <p className="pa-share__preview-url">{details.publicUrl}</p>
           </article>
 
-          {isLocal ? (
-            <p className="pa-share__note">
-              Localhost cannot show preview cards. Set{" "}
-              <span className="pa-share__mono">NEXT_PUBLIC_APP_URL</span> to your live site, then
-              share again.
-            </p>
-          ) : (
-            <p className="pa-share__note">
-              <strong>X</strong> usually shows the photo card right away.{" "}
-              <strong>Facebook</strong> may need a new post after{" "}
-              <a
-                href={`https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(details.publicUrl)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Scrape Again
-              </a>
-              .
-            </p>
-          )}
+          <label className="pa-share__caption">
+            <span className="sr-only">Add a message</span>
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              rows={2}
+              placeholder="Say something about this… (optional)"
+            />
+          </label>
 
-          <div className="pa-share__menu" role="menu" aria-label="Share options">
-            <a
-              className="pa-share__menu-item pa-share__menu-item--primary"
-              role="menuitem"
-              href={xUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={guardLocal}
-            >
-              <span className="pa-share__menu-icon" aria-hidden>
-                𝕏
-              </span>
-              <span>
-                <strong>Share to X (preview card)</strong>
-                <small>Opens with details + link for the card</small>
-              </span>
-            </a>
-            <a
+          <section className="pa-share__to" aria-label="Share to">
+            <h3 className="pa-share__section-label">Share to</h3>
+            <div className="pa-share__icons" role="list">
+              {targets.map((t) =>
+                t.href ? (
+                  <a
+                    key={t.key}
+                    role="listitem"
+                    className={`pa-share__icon-btn pa-share__icon-btn--${t.tone}`}
+                    href={t.href}
+                    target={t.external ? "_blank" : undefined}
+                    rel={t.external ? "noopener noreferrer" : undefined}
+                    onClick={t.external || t.key === "messenger" || t.key === "facebook" ? guardLocal : undefined}
+                  >
+                    <span className="pa-share__icon-circle" aria-hidden>
+                      {iconGlyph(t.key)}
+                    </span>
+                    <span className="pa-share__icon-label">{t.label}</span>
+                  </a>
+                ) : (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="listitem"
+                    className={`pa-share__icon-btn pa-share__icon-btn--${t.tone}`}
+                    onClick={t.onClick}
+                  >
+                    <span className="pa-share__icon-circle" aria-hidden>
+                      {iconGlyph(t.key)}
+                    </span>
+                    <span className="pa-share__icon-label">{t.label}</span>
+                  </button>
+                ),
+              )}
+            </div>
+          </section>
+
+          <div className="pa-share__menu" role="menu" aria-label="More share options">
+            <button
+              type="button"
               className="pa-share__menu-item"
               role="menuitem"
-              href={isPublic ? fbUrl : "#"}
-              target={isPublic ? "_blank" : undefined}
-              rel="noopener noreferrer"
-              onClick={guardLocal}
+              onClick={() => void copyText(shareMessage, "full")}
             >
-              <span className="pa-share__menu-icon" aria-hidden>
-                f
-              </span>
-              <span>
-                <strong>Facebook</strong>
-                <small>Opens share with caption + URL for the card</small>
-              </span>
-            </a>
-            <a
-              className="pa-share__menu-item"
-              role="menuitem"
-              href={isPublic ? messengerUrl : "#"}
-              target={isPublic ? "_blank" : undefined}
-              rel="noopener noreferrer"
-              onClick={guardLocal}
-            >
-              <span className="pa-share__menu-icon" aria-hidden>
-                ✉
-              </span>
-              <span>
-                <strong>Messenger</strong>
-                <small>Send the live profile link</small>
-              </span>
-            </a>
-            <button type="button" className="pa-share__menu-item" role="menuitem" onClick={copyFullAlert}>
               <span className="pa-share__menu-icon" aria-hidden>
                 📋
               </span>
               <span>
-                <strong>{copied ? "Copied" : copyLabel}</strong>
-                <small>Paste into any app (details + URL)</small>
+                <strong>{copied === "full" ? "Copied" : "Copy full alert"}</strong>
+                <small>Details + link — paste anywhere</small>
               </span>
             </button>
-            <button type="button" className="pa-share__menu-item" role="menuitem" onClick={nativeShare}>
-              <span className="pa-share__menu-icon" aria-hidden>
-                ⋯
-              </span>
-              <span>
-                <strong>More</strong>
-                <small>Phone share sheet</small>
-              </span>
-            </button>
-          </div>
-
-          <div className="pa-share__actions">
-            <button type="button" className="pa-share__btn pa-share__btn--quiet" onClick={onClose}>
-              Close
-            </button>
+            {isPublic ? (
+              <a
+                className="pa-share__menu-item"
+                role="menuitem"
+                href={`https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(details.publicUrl)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span className="pa-share__menu-icon" aria-hidden>
+                  f
+                </span>
+                <span>
+                  <strong>Refresh Facebook preview</strong>
+                  <small>Scrape Again if the card is stale</small>
+                </span>
+              </a>
+            ) : (
+              <p className="pa-share__note">
+                Localhost can’t show preview cards. Set{" "}
+                <span className="pa-share__mono">NEXT_PUBLIC_APP_URL</span> to your live site.
+              </p>
+            )}
           </div>
         </div>
       </div>
     </dialog>
   );
+}
+
+function iconGlyph(key: string): string {
+  switch (key) {
+    case "messenger":
+      return "💬";
+    case "whatsapp":
+      return "WA";
+    case "facebook":
+      return "f";
+    case "x":
+      return "𝕏";
+    case "telegram":
+      return "TG";
+    case "sms":
+      return "✉️";
+    case "viber":
+      return "V";
+    case "email":
+      return "@";
+    case "copy":
+      return "🔗";
+    case "more":
+      return "⋯";
+    default:
+      return "•";
+  }
 }
