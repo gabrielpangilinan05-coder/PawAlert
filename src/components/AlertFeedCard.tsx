@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import type { FeedPost } from "@/lib/posts";
-import {
-  alertPinDirectionsUrl,
-  homeAreaDirectionsUrl,
-} from "@/lib/directions";
+import { alertPinDirectionsUrl } from "@/lib/directions";
 import { mediaUrl } from "@/lib/media";
+import { resolveOwnerContact } from "@/lib/owner-contact";
 import {
   ShareAlertDialog,
   shareDetailsFromFeedPost,
@@ -66,15 +64,17 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
       ? toNum(post.pet_home_lng) ?? toNum(post.owner_address_lng)
       : null);
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
-  const homeDir = homeAreaDirectionsUrl(post);
+  const owner = resolveOwnerContact(post);
   const pinDir = alertPinDirectionsUrl(post);
-  const directionsHref = homeDir || pinDir;
+  const directionsHref = owner.homeDirections || pinDir;
 
-  const contactHref = post.contact_phone
-    ? `tel:${post.contact_phone}`
-    : post.contact_email
-      ? `mailto:${post.contact_email}`
-      : null;
+  const contactHref = owner.phone
+    ? `tel:${owner.phone}`
+    : owner.messengerHref
+      ? owner.messengerHref
+      : owner.email
+        ? `mailto:${owner.email}`
+        : null;
 
   const rows: { label: string; value: ReactNode }[] = [
     {
@@ -140,7 +140,7 @@ export function AlertFeedCard({ post }: { post: FeedPost }) {
               target="_blank"
               rel="noopener noreferrer"
             >
-              {homeDir ? "Directions home" : "Get directions"}
+              {owner.homeDirections ? "Directions home" : "Directions last seen"}
             </a>
           ) : null}
           <button

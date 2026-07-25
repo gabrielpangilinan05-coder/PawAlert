@@ -6,10 +6,8 @@ import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
 import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
-import {
-  alertPinDirectionsUrl,
-  homeAreaDirectionsUrl,
-} from "@/lib/directions";
+import { alertPinDirectionsUrl } from "@/lib/directions";
+import { hasOwnerContact, resolveOwnerContact } from "@/lib/owner-contact";
 import { cleanPostBody, shortPlace } from "@/lib/post-display";
 import { getPostById, listPostMedia } from "@/lib/posts";
 import { postLikeCount, userLikedPost } from "@/lib/social";
@@ -112,9 +110,9 @@ export default async function PostPage({
     breed: petBreed,
   });
 
-  const homeDir = homeAreaDirectionsUrl(post);
-  const pinDir = alertPinDirectionsUrl(post);
-  const hasContact = Boolean(post.contact_phone || post.contact_email || homeDir || pinDir);
+  const owner = resolveOwnerContact(post);
+  const pinDir = isMissing || isFound ? alertPinDirectionsUrl(post) : null;
+  const hasContact = hasOwnerContact(owner) || Boolean(pinDir);
   const canManage =
     Boolean(user) && (Number(post.user_id) === user!.id || user!.role === "admin");
 
@@ -210,15 +208,25 @@ export default async function PostPage({
 
           {hasContact ? (
             <div className="alert-contact-actions">
-              {post.contact_phone ? (
-                <a className="btn btn-amber" href={`tel:${String(post.contact_phone)}`}>
+              {owner.phone ? (
+                <a className="btn btn-amber" href={`tel:${owner.phone}`}>
                   Call
                 </a>
               ) : null}
-              {homeDir ? (
+              {owner.messengerHref ? (
                 <a
                   className="btn btn-amber"
-                  href={homeDir}
+                  href={owner.messengerHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Messenger
+                </a>
+              ) : null}
+              {owner.homeDirections ? (
+                <a
+                  className="btn btn-outline"
+                  href={owner.homeDirections}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -232,11 +240,11 @@ export default async function PostPage({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {homeDir ? "Directions last seen" : "Get directions"}
+                  Directions last seen
                 </a>
               ) : null}
-              {post.contact_email ? (
-                <a className="btn btn-outline" href={`mailto:${String(post.contact_email)}`}>
+              {owner.email ? (
+                <a className="btn btn-outline" href={`mailto:${owner.email}`}>
                   Email
                 </a>
               ) : null}

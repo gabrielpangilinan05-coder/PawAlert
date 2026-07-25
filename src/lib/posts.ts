@@ -31,9 +31,15 @@ export type FeedPost = {
   pet_last_seen_at: Date | string | null;
   pet_last_seen_lat: number | string | null;
   pet_last_seen_lng: number | string | null;
+  pet_show_phone: number | null;
+  pet_show_email: number | null;
+  pet_show_messenger: number | null;
   pet_show_address: number | null;
   pet_home_lat: number | string | null;
   pet_home_lng: number | string | null;
+  owner_phone: string | null;
+  owner_email: string | null;
+  owner_messenger: string | null;
   owner_address_lat: number | string | null;
   owner_address_lng: number | string | null;
   like_count: number;
@@ -106,9 +112,15 @@ function feedSelect(mode: SelectMode): string {
       pets.last_seen_at AS pet_last_seen_at,
       pets.last_seen_lat AS pet_last_seen_lat,
       pets.last_seen_lng AS pet_last_seen_lng,
+      pets.show_phone AS pet_show_phone,
+      pets.show_email AS pet_show_email,
+      pets.show_messenger AS pet_show_messenger,
       pets.show_address AS pet_show_address,
       pets.home_lat AS pet_home_lat,
       pets.home_lng AS pet_home_lng,
+      users.phone AS owner_phone,
+      users.email AS owner_email,
+      users.messenger AS owner_messenger,
       users.address_lat AS owner_address_lat,
       users.address_lng AS owner_address_lng,
       COALESCE(lc.like_count, 0) AS like_count,
@@ -136,9 +148,15 @@ function feedSelect(mode: SelectMode): string {
       pets.last_seen_at AS pet_last_seen_at,
       NULL AS pet_last_seen_lat,
       NULL AS pet_last_seen_lng,
+      NULL AS pet_show_phone,
+      NULL AS pet_show_email,
+      NULL AS pet_show_messenger,
       NULL AS pet_show_address,
       NULL AS pet_home_lat,
       NULL AS pet_home_lng,
+      NULL AS owner_phone,
+      NULL AS owner_email,
+      NULL AS owner_messenger,
       NULL AS owner_address_lat,
       NULL AS owner_address_lng,
       COALESCE(lc.like_count, 0) AS like_count,
@@ -276,9 +294,15 @@ function postDetailSelect(mode: SelectMode): string {
       pets.last_seen_lng AS pet_last_seen_lng,
       pets.last_seen_media_path,
       pets.last_seen_media_type,
+      pets.show_phone AS pet_show_phone,
+      pets.show_email AS pet_show_email,
+      pets.show_messenger AS pet_show_messenger,
       pets.show_address AS pet_show_address,
       pets.home_lat AS pet_home_lat,
       pets.home_lng AS pet_home_lng,
+      users.phone AS owner_phone,
+      users.email AS owner_email,
+      users.messenger AS owner_messenger,
       users.address_lat AS owner_address_lat,
       users.address_lng AS owner_address_lng
     `;
@@ -297,9 +321,15 @@ function postDetailSelect(mode: SelectMode): string {
       NULL AS pet_last_seen_lng,
       pets.last_seen_media_path,
       pets.last_seen_media_type,
+      NULL AS pet_show_phone,
+      NULL AS pet_show_email,
+      NULL AS pet_show_messenger,
       NULL AS pet_show_address,
       NULL AS pet_home_lat,
       NULL AS pet_home_lng,
+      NULL AS owner_phone,
+      NULL AS owner_email,
+      NULL AS owner_messenger,
       NULL AS owner_address_lat,
       NULL AS owner_address_lng
     `;

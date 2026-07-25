@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { mediaUrl } from "@/lib/media";
 import { UserAvatar } from "@/components/UserAvatar";
-import { bestDirectionsUrl, homeAreaDirectionsUrl } from "@/lib/directions";
+import { alertPinDirectionsUrl } from "@/lib/directions";
 import { relativeTime, userInitial } from "@/lib/format";
+import { resolveOwnerContact } from "@/lib/owner-contact";
 import type { FeedPost } from "@/lib/posts";
 import { useUnseenCount } from "@/lib/unseen";
 import {
@@ -101,14 +102,16 @@ export function SocialCard({
         : "";
   const location = (post.pet_last_seen_text || post.location_text || "").trim();
   const petName = post.pet_name?.trim() || null;
-  const contactHref = post.contact_phone
-    ? `tel:${post.contact_phone}`
-    : post.contact_email
-      ? `mailto:${post.contact_email}`
-      : null;
+  const owner = resolveOwnerContact(post);
+  const contactHref = owner.phone
+    ? `tel:${owner.phone}`
+    : owner.messengerHref
+      ? owner.messengerHref
+      : owner.email
+        ? `mailto:${owner.email}`
+        : null;
   const profileUrl = post.pet_slug ? `/pet/${post.pet_slug}` : `/post/${post.id}`;
-  const directionsHref = bestDirectionsUrl(post);
-  const homeDir = homeAreaDirectionsUrl(post);
+  const directionsHref = owner.homeDirections || alertPinDirectionsUrl(post);
 
   async function toggleLike() {
     if (!loggedIn) {
@@ -291,7 +294,7 @@ export function SocialCard({
               target="_blank"
               rel="noopener noreferrer"
             >
-              {homeDir ? "Directions home" : "Get directions"}
+              {owner.homeDirections ? "Directions home" : "Directions last seen"}
             </a>
           ) : null}
           <Link className="btn btn-outline" href={`/post/${post.id}`}>
