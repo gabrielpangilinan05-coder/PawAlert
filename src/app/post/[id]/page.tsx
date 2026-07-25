@@ -109,7 +109,6 @@ export default async function PostPage({
         : String(post.type);
 
   const locationFull = String(post.location_text || "").trim();
-  const locationShort = shortPlace(locationFull);
   const species = String(post.species || "").trim();
   const petBreed = post.pet_breed != null ? String(post.pet_breed).trim() : "";
   const body = cleanPostBody(String(post.description || ""), {
@@ -184,21 +183,6 @@ export default async function PostPage({
         <div className="alert-hero-copy">
           <span className={`badge badge-${badgeClass}`}>{statusLabel}</span>
           <h1 className="alert-name">{String(post.title)}</h1>
-          <p className="alert-kind">
-            <span>{String(post.author_name || "Guest")}</span>
-            {species ? (
-              <>
-                <span aria-hidden> · </span>
-                <span>{species}</span>
-              </>
-            ) : null}
-            {locationShort ? (
-              <>
-                <span aria-hidden> · </span>
-                <span title={locationFull || undefined}>{locationShort}</span>
-              </>
-            ) : null}
-          </p>
 
           {facts.length > 0 ? (
             <dl className="alert-facts">
