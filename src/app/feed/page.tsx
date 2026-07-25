@@ -178,20 +178,6 @@ export default async function FeedPage({
                   <div className="composer-prompt">Log in to share with the community…</div>
                 </Link>
               )}
-              <div className="composer-chips" aria-label="Quick post types">
-                <Link href="/create?type=missing" className="composer-chip composer-chip--missing">
-                  Missing
-                </Link>
-                <Link href="/create?type=found" className="composer-chip composer-chip--found">
-                  Found
-                </Link>
-                <Link href="/create?type=tip" className="composer-chip">
-                  Tip
-                </Link>
-                <Link href="/create?type=story" className="composer-chip">
-                  Story
-                </Link>
-              </div>
             </div>
 
             {posts.length === 0 ? (
