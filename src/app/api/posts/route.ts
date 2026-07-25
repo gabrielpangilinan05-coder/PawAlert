@@ -31,12 +31,22 @@ async function insertPostMedia(
   saved: SavedMedia[],
   startOrder = 0,
 ) {
-  for (let i = 0; i < saved.length; i++) {
-    const item = saved[i]!;
-    await pool.execute(
-      `INSERT INTO post_media (post_id, file_path, media_type, sort_order) VALUES (?, ?, ?, ?)`,
-      [postId, item.path, item.type, startOrder + i],
-    );
+  try {
+    for (let i = 0; i < saved.length; i++) {
+      const item = saved[i]!;
+      await pool.execute(
+        `INSERT INTO post_media (post_id, file_path, media_type, sort_order) VALUES (?, ?, ?, ?)`,
+        [postId, item.path, item.type, startOrder + i],
+      );
+    }
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    // Cover photo still saved on posts row; gallery needs migration_post_media.sql
+    if (code === "ER_NO_SUCH_TABLE") {
+      console.warn("[posts] post_media table missing — run sql/migration_post_media.sql");
+      return;
+    }
+    throw err;
   }
 }
 
