@@ -36,6 +36,7 @@ export function CreatePostForm({
 }) {
   const router = useRouter();
   const cameraRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLInputElement | null>(null);
   const galleryRef = useRef<HTMLInputElement | null>(null);
   const [type, setType] = useState(defaultType);
   const [locationText, setLocationText] = useState("");
@@ -162,10 +163,27 @@ export function CreatePostForm({
     }
   }
 
+  function hasLocation(): boolean {
+    return Boolean(locationText.trim() && locationLat != null && locationLng != null);
+  }
+
+  /** GPS only when location is missing — skip if already set (faster retakes). */
+  async function ensureLocationThen(open: () => void) {
+    if (!hasLocation()) {
+      await fillLocationFromGps();
+      await new Promise((r) => window.setTimeout(r, 150));
+    } else {
+      setStatus("Using saved location");
+    }
+    open();
+  }
+
   async function onTakePhotoClick() {
-    await fillLocationFromGps();
-    await new Promise((r) => window.setTimeout(r, 150));
-    cameraRef.current?.click();
+    await ensureLocationThen(() => cameraRef.current?.click());
+  }
+
+  async function onRecordVideoClick() {
+    await ensureLocationThen(() => videoRef.current?.click());
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -269,10 +287,18 @@ export function CreatePostForm({
           <button
             type="button"
             className="btn btn-outline"
+            onClick={() => void onRecordVideoClick()}
+            disabled={gpsBusy || drafts.length >= MAX_MEDIA}
+          >
+            Record video
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
             onClick={() => galleryRef.current?.click()}
             disabled={gpsBusy || drafts.length >= MAX_MEDIA}
           >
-            Add media
+            Gallery
           </button>
         </div>
         <input
@@ -282,6 +308,18 @@ export function CreatePostForm({
           capture="environment"
           className="sr-only"
           aria-label="Take photo with camera"
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={videoRef}
+          type="file"
+          accept="video/*"
+          capture="environment"
+          className="sr-only"
+          aria-label="Record video with camera"
           onChange={(e) => {
             addFiles(e.target.files);
             e.target.value = "";
@@ -300,7 +338,9 @@ export function CreatePostForm({
           }}
         />
         {drafts.length === 0 ? (
-          <p className="create-hint">Add up to {MAX_MEDIA} photos or videos. First item is the cover.</p>
+          <p className="create-hint">
+            Up to {MAX_MEDIA} photos/videos. GPS runs once; later shots reuse location.
+          </p>
         ) : (
           <ul className="create-media-grid">
             {drafts.map((item, index) => (
