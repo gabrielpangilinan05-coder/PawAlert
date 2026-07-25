@@ -15,6 +15,7 @@ export default async function PeoplePage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  const userId = user.id;
 
   const params = await searchParams;
   const tab = params.tab === "following" ? "following" : "search";
@@ -39,7 +40,7 @@ export default async function PeoplePage({
          JOIN users u ON u.id = f.following_id
          WHERE f.follower_id = ?
          ORDER BY u.name ASC`,
-        [user.id],
+        [userId],
       );
       return rows as typeof people;
     }
@@ -52,7 +53,7 @@ export default async function PeoplePage({
            AND (u.name LIKE ? OR u.email LIKE ?)
          ORDER BY u.name ASC
          LIMIT 40`,
-        [user.id, `%${query}%`, `%${query}%`],
+        [userId, `%${query}%`, `%${query}%`],
       );
       return rows as typeof people;
     }
