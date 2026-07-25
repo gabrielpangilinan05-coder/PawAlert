@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FollowButton } from "@/components/FollowButton";
+import { UserAvatar } from "@/components/UserAvatar";
 import { getCurrentUser } from "@/lib/auth";
 import { followerCounts, followingSet } from "@/lib/follows";
 import { getPool } from "@/lib/db";
-import { userInitial } from "@/lib/format";
 
 export const metadata = { title: "People" };
 
@@ -21,11 +21,17 @@ export default async function PeoplePage({
   const query = (params.q || "").trim();
   const pool = getPool();
 
-  let people: { id: number; name: string; email: string; pet_count: number }[] = [];
+  let people: {
+    id: number;
+    name: string;
+    email: string;
+    avatar_path: string | null;
+    pet_count: number;
+  }[] = [];
 
   if (tab === "following") {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email,
+      `SELECT u.id, u.name, u.email, u.avatar_path,
               (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
        FROM follows f
        JOIN users u ON u.id = f.following_id
@@ -36,7 +42,7 @@ export default async function PeoplePage({
     people = rows as typeof people;
   } else if (query.length >= 2) {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email,
+      `SELECT u.id, u.name, u.email, u.avatar_path,
               (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
        FROM users u
        WHERE u.id != ?
@@ -102,7 +108,7 @@ export default async function PeoplePage({
         <div className="people-list">
           {people.map((person) => (
             <article key={person.id} className="people-card">
-              <div className="composer-avatar">{userInitial(person.name)}</div>
+              <UserAvatar name={person.name} src={person.avatar_path} />
               <div className="people-card-body">
                 <strong>
                   <Link href={`/profile?id=${person.id}`}>{person.name}</Link>

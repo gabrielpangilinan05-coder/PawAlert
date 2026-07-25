@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { mediaUrl } from "@/lib/media";
+import { UserAvatar } from "@/components/UserAvatar";
 import { relativeTime, userInitial } from "@/lib/format";
 import type { FeedPost } from "@/lib/posts";
 import { useUnseenCount } from "@/lib/unseen";
@@ -205,7 +206,7 @@ export function SocialCard({
       id={`post-${post.id}`}
     >
       <header className="social-card-head">
-        <div className="composer-avatar">{userInitial(author)}</div>
+        <UserAvatar name={author} src={post.author_avatar_path} />
         <div className="social-card-head__meta">
           <strong>
             {post.user_id ? (

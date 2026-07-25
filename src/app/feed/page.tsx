@@ -6,10 +6,10 @@ import {
 } from "@/components/AlertFilterPanel";
 import { BodyClass } from "@/components/BodyClass";
 import { SocialCard } from "@/components/SocialCard";
+import { UserAvatar } from "@/components/UserAvatar";
 import { getCurrentUser } from "@/lib/auth";
 import { listFeedPosts } from "@/lib/posts";
 import { likedPostIds } from "@/lib/social";
-import { userInitial } from "@/lib/format";
 
 export const metadata = { title: "Feed" };
 
@@ -167,7 +167,7 @@ export default async function FeedPage({
             <div className="composer-block">
               {user ? (
                 <Link href="/create" className="composer-card">
-                  <div className="composer-avatar">{userInitial(user.name)}</div>
+                  <UserAvatar name={user.name} src={user.avatarPath} />
                   <div className="composer-prompt">
                     Share a tip or alert, {firstName}…
                   </div>

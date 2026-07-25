@@ -4,6 +4,7 @@ export type ThreadPartner = {
   id: number;
   name: string;
   email: string;
+  avatar_path: string | null;
   last_body: string | null;
   last_at: string | null;
   unread: number;
@@ -30,7 +31,7 @@ export async function unreadMessageCount(userId: number): Promise<number> {
 export async function conversationPartners(userId: number): Promise<ThreadPartner[]> {
   const pool = getPool();
   const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email,
+    `SELECT u.id, u.name, u.email, u.avatar_path,
       (
         SELECT m.body FROM messages m
         WHERE (m.sender_id = u.id AND m.receiver_id = ?)
@@ -58,6 +59,7 @@ export async function conversationPartners(userId: number): Promise<ThreadPartne
   );
   return (rows as ThreadPartner[]).map((r) => ({
     ...r,
+    avatar_path: r.avatar_path ?? null,
     unread: Number(r.unread ?? 0),
     last_at: r.last_at ? String(r.last_at) : null,
   }));

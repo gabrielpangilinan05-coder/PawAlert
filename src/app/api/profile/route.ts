@@ -1,18 +1,9 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { getPool } from "@/lib/db";
 import { normalizePhMobile } from "@/lib/phone";
 import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
-
-const schema = z.object({
-  name: z.string().min(1).max(120),
-  phone: z.string().optional(),
-  messenger: z.string().max(190).optional(),
-  address: z.string().max(255).optional(),
-  addressLat: z.number().finite().nullable().optional(),
-  addressLng: z.number().finite().nullable().optional(),
-});
+import { deleteStoredMedia, saveMediaFile } from "@/lib/upload";
 
 export async function PATCH(req: Request) {
   const user = await getCurrentUser();
@@ -24,8 +15,22 @@ export async function PATCH(req: Request) {
   if (!limited.ok) return tooManyRequests(limited.resetAt);
 
   try {
-    const body = schema.parse(await req.json());
-    const phoneRaw = (body.phone || "").trim();
+    const form = await req.formData();
+    const name = String(form.get("name") || "").trim();
+    const phoneRaw = String(form.get("phone") || "").trim();
+    const messenger = String(form.get("messenger") || "").trim();
+    const address = String(form.get("address") || "").trim();
+    const latRaw = Number(form.get("addressLat"));
+    const lngRaw = Number(form.get("addressLng"));
+    const addressLat = Number.isFinite(latRaw) ? latRaw : null;
+    const addressLng = Number.isFinite(lngRaw) ? lngRaw : null;
+    const removeAvatar = String(form.get("remove_avatar") || "") === "1";
+    const avatarFile = form.get("avatar");
+
+    if (!name || name.length > 120) {
+      return NextResponse.json({ error: "Enter a valid name." }, { status: 400 });
+    }
+
     let phone: string | null = null;
     if (phoneRaw) {
       phone = normalizePhMobile(phoneRaw);
@@ -38,27 +43,57 @@ export async function PATCH(req: Request) {
     }
 
     const pool = getPool();
+    let currentAvatar: string | null = null;
+    try {
+      const [rows] = await pool.query(`SELECT avatar_path FROM users WHERE id = ? LIMIT 1`, [
+        user.id,
+      ]);
+      currentAvatar = (rows as { avatar_path: string | null }[])[0]?.avatar_path ?? null;
+    } catch (err) {
+      if ((err as { code?: string }).code === "ER_BAD_FIELD_ERROR") {
+        return NextResponse.json(
+          { error: "Avatar not available yet. Run migration_user_avatar.sql on the database." },
+          { status: 503 },
+        );
+      }
+      throw err;
+    }
+
+    let nextAvatar = currentAvatar;
+    if (removeAvatar) {
+      nextAvatar = null;
+    } else if (avatarFile instanceof File && avatarFile.size > 0) {
+      const saved = await saveMediaFile(avatarFile, "avatars", "image");
+      if (saved) nextAvatar = saved.path;
+    }
+
     await pool.execute(
       `UPDATE users
-       SET name = ?, phone = ?, messenger = ?, address = ?, address_lat = ?, address_lng = ?
+       SET name = ?, phone = ?, messenger = ?, address = ?,
+           address_lat = ?, address_lng = ?, avatar_path = ?
        WHERE id = ? AND banned_at IS NULL`,
       [
-        body.name.trim(),
+        name,
         phone,
-        body.messenger?.trim() || null,
-        body.address?.trim() || null,
-        body.addressLat ?? null,
-        body.addressLng ?? null,
+        messenger || null,
+        address || null,
+        addressLat,
+        addressLng,
+        nextAvatar,
         user.id,
       ],
     );
 
-    return NextResponse.json({ ok: true });
-  } catch (err) {
-    if (err instanceof z.ZodError) {
-      return NextResponse.json({ error: "Check your profile fields." }, { status: 400 });
+    if (currentAvatar && currentAvatar !== nextAvatar) {
+      await deleteStoredMedia(currentAvatar);
     }
+
+    return NextResponse.json({ ok: true, avatarPath: nextAvatar });
+  } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Could not update profile." }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Could not update profile." },
+      { status: 400 },
+    );
   }
 }

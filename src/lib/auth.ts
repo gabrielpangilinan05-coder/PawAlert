@@ -10,10 +10,21 @@ export type User = {
   phone: string | null;
   messenger: string | null;
   address: string | null;
+  avatarPath: string | null;
   role: "user" | "admin";
 };
 
-type UserRow = User & { banned_at: Date | string | null };
+type UserRow = {
+  id: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  messenger: string | null;
+  address: string | null;
+  avatar_path?: string | null;
+  role: string;
+  banned_at: Date | string | null;
+};
 
 function emailIsBootstrapAdmin(email: string): boolean {
   const set = new Set(
@@ -31,13 +42,24 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
   if (!session.userId) return null;
 
   const pool = getPool();
-  const [rows] = await pool.query(
-    `SELECT id, name, email, phone, messenger, address, role, banned_at
-     FROM users WHERE id = ? LIMIT 1`,
-    [session.userId],
-  );
-  const list = rows as UserRow[];
-  const row = list[0];
+  let row: UserRow | undefined;
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, name, email, phone, messenger, address, avatar_path, role, banned_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [session.userId],
+    );
+    row = (rows as UserRow[])[0];
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ER_BAD_FIELD_ERROR") throw err;
+    const [rows] = await pool.query(
+      `SELECT id, name, email, phone, messenger, address, role, banned_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [session.userId],
+    );
+    row = (rows as UserRow[])[0];
+  }
+
   // Stale session id: treat as logged out. Do not session.save() here —
   // getCurrentUser runs from RootLayout, where cookies cannot be modified.
   if (!row) return null;
@@ -56,6 +78,7 @@ export const getCurrentUser = cache(async (): Promise<User | null> => {
     phone: row.phone,
     messenger: row.messenger,
     address: row.address,
+    avatarPath: row.avatar_path ?? null,
     role,
   };
 });

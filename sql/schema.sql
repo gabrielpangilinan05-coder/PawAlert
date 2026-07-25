@@ -10,6 +10,7 @@ CREATE TABLE users (
     address VARCHAR(255) DEFAULT NULL,
     address_lat DECIMAL(10,7) DEFAULT NULL,
     address_lng DECIMAL(10,7) DEFAULT NULL,
+    avatar_path VARCHAR(255) DEFAULT NULL,
     password_hash VARCHAR(255) NOT NULL,
     role ENUM('user','admin') NOT NULL DEFAULT 'user',
     banned_at DATETIME DEFAULT NULL,

@@ -2,10 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BodyClass } from "@/components/BodyClass";
 import { FollowButton } from "@/components/FollowButton";
+import { UserAvatar } from "@/components/UserAvatar";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
 import { followerCount, followingCount, isFollowing } from "@/lib/follows";
 import { getPool } from "@/lib/db";
-import { userInitial } from "@/lib/format";
 
 export const metadata = { title: "Profile" };
 
@@ -38,19 +38,46 @@ export default async function ProfilePage({
   const viewId = id ? Number(id) : me.id;
 
   const pool = getPool();
-  const [rows] = await pool.query(
-    `SELECT id, name, email, phone, messenger, address, created_at FROM users WHERE id = ? LIMIT 1`,
-    [viewId],
-  );
-  const profile = (rows as {
+  type ProfileRow = {
     id: number;
     name: string;
     email: string;
     phone: string | null;
     messenger: string | null;
     address: string | null;
+    avatar_path: string | null;
     created_at: string | Date;
-  }[])[0];
+  };
+  let profile: ProfileRow | null = null;
+
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, name, email, phone, messenger, address, avatar_path, created_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [viewId],
+    );
+    profile = (rows as ProfileRow[])[0] ?? null;
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ER_BAD_FIELD_ERROR") throw err;
+    const [rows] = await pool.query(
+      `SELECT id, name, email, phone, messenger, address, created_at
+       FROM users WHERE id = ? LIMIT 1`,
+      [viewId],
+    );
+    const fallback = (
+      rows as {
+        id: number;
+        name: string;
+        email: string;
+        phone: string | null;
+        messenger: string | null;
+        address: string | null;
+        created_at: string | Date;
+      }[]
+    )[0];
+    profile = fallback ? { ...fallback, avatar_path: null } : null;
+  }
+
   if (!profile) redirect("/feed");
 
   const isSelf = profile.id === me.id;
@@ -94,65 +121,62 @@ export default async function ProfilePage({
     location_text: string | null;
   }[];
 
+  const contactBits = [
+    isSelf ? { label: "Email", value: profile.email } : null,
+    profile.phone ? { label: "Phone", value: profile.phone } : null,
+    profile.messenger ? { label: "Messenger", value: profile.messenger } : null,
+    profile.address ? { label: "Area", value: profile.address } : null,
+  ].filter(Boolean) as { label: string; value: string }[];
+
   return (
     <>
       <BodyClass name="dashboard-page" />
-      <div className="page-wrap dashboard-wrap social-feed-wrap">
-        <div className="profile-hero social-card">
-          <div className="composer-avatar" style={{ width: 64, height: 64, fontSize: "1.4rem" }}>
-            {userInitial(profile.name)}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h1 className="page-title" style={{ margin: 0 }}>
-              {profile.name}
-            </h1>
-            <p className="meta" style={{ margin: "0.35rem 0 0" }}>
-              {followers} followers · {followingN} following · joined {joined}
-            </p>
-          </div>
-          {isSelf ? (
-            <div className="people-card-actions">
-              <Link className="btn btn-small btn-amber" href="/profile/edit">
-                Edit profile
-              </Link>
-              <Link className="btn btn-small btn-outline" href="/pets/new">
-                Add pet
-              </Link>
-              <Link className="btn btn-small btn-outline" href="/create">
-                New post
-              </Link>
+      <div className="page-wrap dashboard-wrap profile-page-wrap">
+        <header className="profile-cover">
+          <div className="profile-cover__inner">
+            <UserAvatar name={profile.name} src={profile.avatar_path} size="xl" />
+            <div className="profile-cover__copy">
+              <h1 className="profile-cover__name">{profile.name}</h1>
+              <p className="profile-cover__meta">
+                <span>{followers} followers</span>
+                <span aria-hidden>·</span>
+                <span>{followingN} following</span>
+                <span aria-hidden>·</span>
+                <span>Joined {joined}</span>
+              </p>
+              {isSelf ? (
+                <div className="profile-cover__actions">
+                  <Link className="btn btn-amber" href="/profile/edit">
+                    Edit profile
+                  </Link>
+                  <Link className="btn btn-outline" href="/pets/new">
+                    Add pet
+                  </Link>
+                  <Link className="btn btn-outline" href="/create">
+                    New post
+                  </Link>
+                </div>
+              ) : (
+                <div className="profile-cover__actions">
+                  <FollowButton userId={profile.id} initialFollowing={following} />
+                  <Link className="btn btn-outline" href={`/messages?with=${profile.id}`}>
+                    Message
+                  </Link>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="people-card-actions">
-              <FollowButton userId={profile.id} initialFollowing={following} />
-              <Link className="btn btn-small btn-outline" href={`/messages?with=${profile.id}`}>
-                Message
-              </Link>
-            </div>
-          )}
-        </div>
+          </div>
+        </header>
 
-        {isSelf ? (
-          <div className="panel" style={{ marginTop: "1rem", maxWidth: 520 }}>
-            <dl className="form-grid">
-              <div>
-                <dt className="muted">Email</dt>
-                <dd style={{ margin: 0, fontWeight: 700 }}>{profile.email}</dd>
+        {contactBits.length > 0 ? (
+          <section className="profile-contact" aria-label="Contact">
+            {contactBits.map((item) => (
+              <div key={item.label} className="profile-contact__item">
+                <span className="profile-contact__label">{item.label}</span>
+                <span className="profile-contact__value">{item.value}</span>
               </div>
-              <div>
-                <dt className="muted">Phone</dt>
-                <dd style={{ margin: 0, fontWeight: 700 }}>{profile.phone || "—"}</dd>
-              </div>
-              <div>
-                <dt className="muted">Messenger</dt>
-                <dd style={{ margin: 0, fontWeight: 700 }}>{profile.messenger || "—"}</dd>
-              </div>
-              <div>
-                <dt className="muted">Address</dt>
-                <dd style={{ margin: 0, fontWeight: 700 }}>{profile.address || "—"}</dd>
-              </div>
-            </dl>
-          </div>
+            ))}
+          </section>
         ) : null}
 
         <section className="dashboard-section">

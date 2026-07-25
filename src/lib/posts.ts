@@ -20,6 +20,7 @@ export type FeedPost = {
   created_at: Date | string;
   updated_at: Date | string;
   author_name: string | null;
+  author_avatar_path: string | null;
   pet_name: string | null;
   pet_sex: string | null;
   pet_breed: string | null;
@@ -87,6 +88,7 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
       posts.contact_name, posts.contact_phone, posts.contact_email,
       posts.status, posts.created_at, posts.updated_at,
       users.name AS author_name,
+      users.avatar_path AS author_avatar_path,
       pets.name AS pet_name,
       pets.sex AS pet_sex,
       pets.breed AS pet_breed,
@@ -186,6 +188,7 @@ export async function getPostById(id: number, opts?: { includeHidden?: boolean }
     `SELECT
       posts.*,
       users.name AS author_name,
+      users.avatar_path AS author_avatar_path,
       pets.name AS pet_name,
       pets.photo_path AS pet_photo_path,
       pets.sex AS pet_sex,
