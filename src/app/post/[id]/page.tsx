@@ -120,9 +120,12 @@ export default async function PostPage({
 
   const owner = resolveOwnerContact(post);
   const pinDir = isMissing || isFound ? alertPinDirectionsUrl(post) : null;
-  const hasContact = hasOwnerContact(owner) || Boolean(pinDir);
+  const ownerUserId = Number(post.user_id) || 0;
+  const canMessageOwner = ownerUserId > 0 && (!user || user.id !== ownerUserId);
+  const hasContact =
+    hasOwnerContact(owner) || Boolean(pinDir) || canMessageOwner;
   const canManage = Boolean(
-    user && (Number(post.user_id) === user.id || user.role === "admin"),
+    user && (ownerUserId === user.id || user.role === "admin"),
   );
 
   const shareKind = postShareKind(String(post.type), String(post.status));
@@ -233,9 +236,17 @@ export default async function PostPage({
                   Call
                 </a>
               ) : null}
+              {canMessageOwner ? (
+                <Link
+                  className="btn btn-amber"
+                  href={user ? `/messages?with=${ownerUserId}` : "/login"}
+                >
+                  Message
+                </Link>
+              ) : null}
               {owner.messengerHref ? (
                 <a
-                  className="btn btn-amber"
+                  className="btn btn-outline"
                   href={owner.messengerHref}
                   target="_blank"
                   rel="noopener noreferrer"
