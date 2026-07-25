@@ -30,8 +30,8 @@ export async function unreadMessageCount(userId: number): Promise<number> {
 
 export async function conversationPartners(userId: number): Promise<ThreadPartner[]> {
   const pool = getPool();
-  const [rows] = await pool.query(
-    `SELECT u.id, u.name, u.email, u.avatar_path,
+  const params = [userId, userId, userId, userId, userId, userId, userId, userId];
+  const tail = `
       (
         SELECT m.body FROM messages m
         WHERE (m.sender_id = u.id AND m.receiver_id = ?)
@@ -54,10 +54,22 @@ export async function conversationPartners(userId: number): Promise<ThreadPartne
        FROM messages
        WHERE sender_id = ? OR receiver_id = ?
      )
-     ORDER BY last_at DESC`,
-    [userId, userId, userId, userId, userId, userId, userId, userId],
-  );
-  return (rows as ThreadPartner[]).map((r) => ({
+     ORDER BY last_at DESC`;
+
+  let rows: ThreadPartner[];
+  try {
+    const [result] = await pool.query(`SELECT u.id, u.name, u.email, u.avatar_path, ${tail}`, params);
+    rows = result as ThreadPartner[];
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ER_BAD_FIELD_ERROR") throw err;
+    const [result] = await pool.query(
+      `SELECT u.id, u.name, u.email, NULL AS avatar_path, ${tail}`,
+      params,
+    );
+    rows = result as ThreadPartner[];
+  }
+
+  return rows.map((r) => ({
     ...r,
     avatar_path: r.avatar_path ?? null,
     unread: Number(r.unread ?? 0),

@@ -69,6 +69,10 @@ function withinMonths(within?: string): number | null {
   }
 }
 
+function isBadField(err: unknown): boolean {
+  return (err as { code?: string }).code === "ER_BAD_FIELD_ERROR";
+}
+
 /** Approx miles between two lat/lng points (Haversine), for SQL. */
 const HAVERSINE_MILES = `(
   3958.8 * ACOS(
@@ -80,15 +84,11 @@ const HAVERSINE_MILES = `(
   )
 )`;
 
-export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPost[]> {
-  const type = opts.type && opts.type !== "all" ? opts.type : null;
-  const limit = opts.limit ?? 40;
-  const pool = getPool();
-  const isAlert =
-    type === "missing" || type === "found" || type === "resolved";
+type SelectMode = "full" | "compat";
 
-  let sql = `
-    SELECT
+function feedSelect(mode: SelectMode): string {
+  if (mode === "full") {
+    return `
       posts.id, posts.user_id, posts.pet_id, posts.type, posts.title, posts.description, posts.species,
       posts.photo_path, posts.media_type, posts.location_text,
       posts.location_lat, posts.location_lng,
@@ -114,6 +114,53 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
       COALESCE(lc.like_count, 0) AS like_count,
       COALESCE(cc.comment_count, 0) AS comment_count,
       COALESCE(posts.share_count, 0) AS share_count
+    `;
+  }
+
+  // Older DBs may be missing avatar / map / notes / share_count columns.
+  return `
+      posts.id, posts.user_id, posts.pet_id, posts.type, posts.title, posts.description, posts.species,
+      posts.photo_path, posts.media_type, posts.location_text,
+      NULL AS location_lat, NULL AS location_lng,
+      posts.contact_name, posts.contact_phone, posts.contact_email,
+      posts.status, posts.created_at, posts.updated_at,
+      users.name AS author_name,
+      NULL AS author_avatar_path,
+      pets.name AS pet_name,
+      pets.sex AS pet_sex,
+      pets.breed AS pet_breed,
+      pets.photo_path AS pet_photo_path,
+      pets.public_slug AS pet_slug,
+      pets.last_seen_text AS pet_last_seen_text,
+      NULL AS pet_last_seen_notes,
+      pets.last_seen_at AS pet_last_seen_at,
+      NULL AS pet_last_seen_lat,
+      NULL AS pet_last_seen_lng,
+      NULL AS pet_show_address,
+      NULL AS pet_home_lat,
+      NULL AS pet_home_lng,
+      NULL AS owner_address_lat,
+      NULL AS owner_address_lng,
+      COALESCE(lc.like_count, 0) AS like_count,
+      COALESCE(cc.comment_count, 0) AS comment_count,
+      0 AS share_count
+    `;
+}
+
+async function queryFeedPosts(
+  opts: AlertFeedFilters,
+  mode: SelectMode,
+): Promise<FeedPost[]> {
+  const type = opts.type && opts.type !== "all" ? opts.type : null;
+  const limit = opts.limit ?? 40;
+  const pool = getPool();
+  const isAlert =
+    type === "missing" || type === "found" || type === "resolved";
+  const useGeo = mode === "full";
+
+  let sql = `
+    SELECT
+      ${feedSelect(mode)}
     FROM posts
     LEFT JOIN users ON users.id = posts.user_id
     LEFT JOIN pets ON pets.id = posts.pet_id
@@ -159,7 +206,7 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
     }
 
     const radius = opts.radiusMiles != null && opts.radiusMiles > 0 ? opts.radiusMiles : null;
-    if (radius != null && opts.nearLat != null && opts.nearLng != null) {
+    if (useGeo && radius != null && opts.nearLat != null && opts.nearLng != null) {
       where.push(`COALESCE(posts.location_lat, pets.last_seen_lat) IS NOT NULL`);
       where.push(`COALESCE(posts.location_lng, pets.last_seen_lng) IS NOT NULL`);
       where.push(`${HAVERSINE_MILES} <= ?`);
@@ -172,7 +219,13 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
   }
 
   const sort = (opts.sort || "updated").toLowerCase();
-  if (isAlert && sort === "nearest" && opts.nearLat != null && opts.nearLng != null) {
+  if (
+    useGeo &&
+    isAlert &&
+    sort === "nearest" &&
+    opts.nearLat != null &&
+    opts.nearLng != null
+  ) {
     sql += ` ORDER BY
       CASE
         WHEN COALESCE(posts.location_lat, pets.last_seen_lat) IS NULL THEN 1
@@ -195,11 +248,21 @@ export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPo
   return rows as FeedPost[];
 }
 
-export async function getPostById(id: number, opts?: { includeHidden?: boolean }) {
-  const pool = getPool();
-  const hiddenClause = opts?.includeHidden ? "" : "AND posts.hidden_at IS NULL";
-  const [rows] = await pool.query(
-    `SELECT
+export async function listFeedPosts(opts: AlertFeedFilters = {}): Promise<FeedPost[]> {
+  try {
+    return await queryFeedPosts(opts, "full");
+  } catch (err) {
+    if (!isBadField(err)) throw err;
+    console.warn(
+      "[feed] Missing DB columns — using compat query. Run sql/migration_user_avatar.sql and sql/migration_map_coords.sql on production.",
+    );
+    return await queryFeedPosts(opts, "compat");
+  }
+}
+
+function postDetailSelect(mode: SelectMode): string {
+  if (mode === "full") {
+    return `
       posts.*,
       users.name AS author_name,
       users.avatar_path AS author_avatar_path,
@@ -217,15 +280,55 @@ export async function getPostById(id: number, opts?: { includeHidden?: boolean }
       pets.home_lng AS pet_home_lng,
       users.address_lat AS owner_address_lat,
       users.address_lng AS owner_address_lng
-     FROM posts
-     LEFT JOIN users ON users.id = posts.user_id
-     LEFT JOIN pets ON pets.id = posts.pet_id
-     WHERE posts.id = ? ${hiddenClause}
-     LIMIT 1`,
-    [id],
-  );
-  const list = rows as Record<string, unknown>[];
-  return list[0] ?? null;
+    `;
+  }
+  return `
+      posts.*,
+      users.name AS author_name,
+      NULL AS author_avatar_path,
+      pets.name AS pet_name,
+      pets.photo_path AS pet_photo_path,
+      pets.sex AS pet_sex,
+      pets.last_seen_text AS pet_last_seen_text,
+      pets.last_seen_at AS pet_last_seen_at,
+      NULL AS pet_last_seen_lat,
+      NULL AS pet_last_seen_lng,
+      pets.last_seen_media_path,
+      pets.last_seen_media_type,
+      NULL AS pet_show_address,
+      NULL AS pet_home_lat,
+      NULL AS pet_home_lng,
+      NULL AS owner_address_lat,
+      NULL AS owner_address_lng
+    `;
+}
+
+export async function getPostById(id: number, opts?: { includeHidden?: boolean }) {
+  const pool = getPool();
+  const hiddenClause = opts?.includeHidden ? "" : "AND posts.hidden_at IS NULL";
+
+  async function run(mode: SelectMode) {
+    const [rows] = await pool.query(
+      `SELECT
+        ${postDetailSelect(mode)}
+       FROM posts
+       LEFT JOIN users ON users.id = posts.user_id
+       LEFT JOIN pets ON pets.id = posts.pet_id
+       WHERE posts.id = ? ${hiddenClause}
+       LIMIT 1`,
+      [id],
+    );
+    const list = rows as Record<string, unknown>[];
+    return list[0] ?? null;
+  }
+
+  try {
+    return await run("full");
+  } catch (err) {
+    if (!isBadField(err)) throw err;
+    console.warn("[post] Missing DB columns — using compat query.");
+    return await run("compat");
+  }
 }
 
 export type PostMediaItem = {

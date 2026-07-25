@@ -29,29 +29,41 @@ export default async function PeoplePage({
     pet_count: number;
   }[] = [];
 
-  if (tab === "following") {
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.avatar_path,
-              (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
-       FROM follows f
-       JOIN users u ON u.id = f.following_id
-       WHERE f.follower_id = ?
-       ORDER BY u.name ASC`,
-      [user.id],
-    );
-    people = rows as typeof people;
-  } else if (query.length >= 2) {
-    const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.email, u.avatar_path,
-              (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
-       FROM users u
-       WHERE u.id != ?
-         AND (u.name LIKE ? OR u.email LIKE ?)
-       ORDER BY u.name ASC
-       LIMIT 40`,
-      [user.id, `%${query}%`, `%${query}%`],
-    );
-    people = rows as typeof people;
+  async function loadPeople(withAvatar: boolean) {
+    const avatarCol = withAvatar ? "u.avatar_path" : "NULL AS avatar_path";
+    if (tab === "following") {
+      const [rows] = await pool.query(
+        `SELECT u.id, u.name, u.email, ${avatarCol},
+                (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
+         FROM follows f
+         JOIN users u ON u.id = f.following_id
+         WHERE f.follower_id = ?
+         ORDER BY u.name ASC`,
+        [user.id],
+      );
+      return rows as typeof people;
+    }
+    if (query.length >= 2) {
+      const [rows] = await pool.query(
+        `SELECT u.id, u.name, u.email, ${avatarCol},
+                (SELECT COUNT(*) FROM pets p WHERE p.user_id = u.id) AS pet_count
+         FROM users u
+         WHERE u.id != ?
+           AND (u.name LIKE ? OR u.email LIKE ?)
+         ORDER BY u.name ASC
+         LIMIT 40`,
+        [user.id, `%${query}%`, `%${query}%`],
+      );
+      return rows as typeof people;
+    }
+    return [] as typeof people;
+  }
+
+  try {
+    people = await loadPeople(true);
+  } catch (err) {
+    if ((err as { code?: string }).code !== "ER_BAD_FIELD_ERROR") throw err;
+    people = await loadPeople(false);
   }
 
   const ids = people.map((p) => p.id);
