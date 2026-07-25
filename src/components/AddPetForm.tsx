@@ -96,7 +96,7 @@ export function AddPetForm() {
         <button className="btn btn-amber" type="submit" disabled={loading}>
           {loading ? "Saving…" : "Save pet"}
         </button>
-        <Link className="btn btn-outline" href="/dashboard">
+        <Link className="btn btn-outline" href="/profile">
           Cancel
         </Link>
       </div>

@@ -7,7 +7,7 @@ import { maskEmail } from "@/lib/email";
 export const metadata = { title: "Verify email" };
 
 export default async function VerifyEmailPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/profile");
   const session = await getSession();
   if (!session.pendingRegister) redirect("/register");
 

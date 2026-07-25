@@ -24,7 +24,7 @@ export function VerifyForm({ preview }: { preview?: string | null }) {
         setError(data.error || "Verification failed");
         return;
       }
-      router.push("/dashboard");
+      router.push("/profile");
       router.refresh();
     } catch {
       setError("Network error");

@@ -27,7 +27,7 @@ export function ResetPasswordForm({ preview }: { preview?: string | null }) {
         setError(data.error || "Reset failed");
         return;
       }
-      router.push("/dashboard");
+      router.push("/profile");
       router.refresh();
     } catch {
       setError("Network error");

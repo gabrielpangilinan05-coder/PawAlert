@@ -27,7 +27,7 @@ export function LoginForm() {
         setError(data.error || "Login failed");
         return;
       }
-      router.push("/dashboard");
+      router.push("/profile");
       router.refresh();
     } catch {
       setError("Network error");

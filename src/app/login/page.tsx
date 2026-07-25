@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 export const metadata = { title: "Log in" };
 
 export default async function LoginPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/profile");
 
   return (
     <div className="page-wrap">

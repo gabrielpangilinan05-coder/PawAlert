@@ -8,7 +8,7 @@ import { maskEmail } from "@/lib/email";
 export const metadata = { title: "Reset password" };
 
 export default async function ResetPasswordPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/profile");
   const session = await getSession();
 
   if (!session.pendingReset) {

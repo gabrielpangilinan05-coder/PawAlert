@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 export const metadata = { title: "Register" };
 
 export default async function RegisterPage() {
-  if (await getCurrentUser()) redirect("/dashboard");
+  if (await getCurrentUser()) redirect("/profile");
 
   return (
     <div className="page-wrap">

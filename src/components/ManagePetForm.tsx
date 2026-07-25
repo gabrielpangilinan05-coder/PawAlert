@@ -101,7 +101,7 @@ export function ManagePetForm({
         return false;
       }
       if (data.deleted) {
-        router.push("/dashboard");
+        router.push("/profile");
         router.refresh();
         return true;
       }
@@ -329,7 +329,7 @@ export function ManagePetForm({
           <button className="btn btn-amber" type="submit" disabled={loading}>
             {loading ? "Saving…" : "Save changes"}
           </button>
-          <Link className="btn btn-outline" href="/dashboard">
+          <Link className="btn btn-outline" href="/profile">
             Back
           </Link>
           <button
