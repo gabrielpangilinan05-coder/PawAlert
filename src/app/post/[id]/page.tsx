@@ -4,7 +4,7 @@ import { DeletePostButton } from "@/components/DeletePostButton";
 import { LikeCommentBar } from "@/components/LikeCommentBar";
 import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
-import { PostShareButton, postShareKind } from "@/components/PostShareButton";
+import { PostShareButton } from "@/components/PostShareButton";
 import { getAdminUser } from "@/lib/admin";
 import { getCurrentUser, mediaUrl } from "@/lib/auth";
 import { alertPinDirectionsUrl } from "@/lib/directions";
@@ -12,6 +12,7 @@ import { appOrigin } from "@/lib/media";
 import { hasOwnerContact, resolveOwnerContact } from "@/lib/owner-contact";
 import { cleanPostBody, shortPlace } from "@/lib/post-display";
 import { getPostById, listPostMedia } from "@/lib/posts";
+import { postShareKind } from "@/lib/share";
 import { postLikeCount, userLikedPost } from "@/lib/social";
 import { getPool } from "@/lib/db";
 
@@ -55,12 +56,17 @@ export default async function PostPage({
   const likes = await postLikeCount(postId);
   const isHidden = Boolean(post.hidden_at);
 
-  const pool = getPool();
-  const [countRows] = await pool.query(
-    `SELECT COUNT(*) AS c FROM post_comments WHERE post_id = ?`,
-    [postId],
-  );
-  const commentCount = Number((countRows as { c: number }[])[0]?.c ?? 0);
+  let commentCount = 0;
+  try {
+    const pool = getPool();
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) AS c FROM post_comments WHERE post_id = ?`,
+      [postId],
+    );
+    commentCount = Number((countRows as { c: number }[])[0]?.c ?? 0);
+  } catch {
+    commentCount = 0;
+  }
 
   const gallery = await listPostMedia(postId);
   const photo =

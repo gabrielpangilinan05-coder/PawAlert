@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { appOrigin, mediaUrl } from "@/lib/media";
 import type { FeedPost } from "@/lib/posts";
+import type { ShareKind } from "@/lib/share";
 
-export type ShareKind = "missing" | "found" | "post";
+export type { ShareKind };
 
 export type ShareAlertDetails = {
   petName: string;
