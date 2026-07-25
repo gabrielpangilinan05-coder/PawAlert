@@ -10,7 +10,7 @@ import { getCurrentUser, mediaUrl } from "@/lib/auth";
 import { alertPinDirectionsUrl } from "@/lib/directions";
 import { appOrigin } from "@/lib/media";
 import { hasOwnerContact, resolveOwnerContact } from "@/lib/owner-contact";
-import { cleanPostBody, shortPlace } from "@/lib/post-display";
+import { cleanPostBody, shortPlace, splitAlertNotes } from "@/lib/post-display";
 import { getPostById, listPostMedia } from "@/lib/posts";
 import { postShareKind } from "@/lib/share";
 import { postLikeCount, userLikedPost } from "@/lib/social";
@@ -111,10 +111,16 @@ export default async function PostPage({
   const locationFull = String(post.location_text || "").trim();
   const species = String(post.species || "").trim();
   const petBreed = post.pet_breed != null ? String(post.pet_breed).trim() : "";
+  const { petNote, lastSeenNote } = splitAlertNotes({
+    description: post.description,
+    medicalNotes: post.pet_medical_notes,
+    lastSeenNotes: post.pet_last_seen_notes,
+  });
   const body = cleanPostBody(String(post.description || ""), {
     locationText: locationFull,
     species,
     breed: petBreed,
+    dropNotes: [petNote, lastSeenNote],
   });
 
   const owner = resolveOwnerContact(post);
@@ -138,17 +144,19 @@ export default async function PostPage({
     ? `${origin}/pet/${String(post.pet_slug)}`
     : `${origin}/post/${postId}`;
 
-  const facts: { label: string; value: string }[] = [];
-  if (species || petBreed) {
+  const facts: { label: string; value: string; note?: string | null }[] = [];
+  if (species || petBreed || petNote) {
     facts.push({
       label: "Pet",
-      value: [species, petBreed].filter(Boolean).join(" · "),
+      value: [species, petBreed].filter(Boolean).join(" · ") || "Pet",
+      note: petNote,
     });
   }
-  if (locationFull) {
+  if (locationFull || lastSeenNote) {
     facts.push({
       label: isMissing || isResolved ? "Last seen" : "Location",
-      value: locationFull,
+      value: locationFull || lastSeenNote || "",
+      note: locationFull ? lastSeenNote : null,
     });
   }
   if (post.contact_name && isAlert) {
@@ -189,7 +197,10 @@ export default async function PostPage({
               {facts.map((f) => (
                 <div key={f.label} className="alert-facts__row">
                   <dt>{f.label}</dt>
-                  <dd>{f.value}</dd>
+                  <dd>
+                    {f.value ? <span className="alert-facts__main">{f.value}</span> : null}
+                    {f.note ? <span className="alert-facts__note">{f.note}</span> : null}
+                  </dd>
                 </div>
               ))}
             </dl>
@@ -259,7 +270,7 @@ export default async function PostPage({
                 species: species || null,
                 breed: petBreed || null,
                 lastSeenText: locationFull || null,
-                lastSeenNotes: body || null,
+                lastSeenNotes: lastSeenNote || body || null,
                 lastSeenAt:
                   post.pet_last_seen_at != null
                     ? String(post.pet_last_seen_at)

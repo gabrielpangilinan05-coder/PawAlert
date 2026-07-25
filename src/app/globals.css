@@ -1475,11 +1475,20 @@ img {
 
 .alert-facts__row dd {
   margin: 0;
+  display: grid;
+  gap: 0.2rem;
   font-size: 0.95rem;
   font-weight: 650;
   line-height: 1.45;
   color: #24362c;
   word-break: break-word;
+}
+
+.alert-facts__note {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: color-mix(in srgb, #24362c 78%, #7a877e);
 }
 
 .alert-body {

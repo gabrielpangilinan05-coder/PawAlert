@@ -7,6 +7,35 @@ export function shortPlace(raw: string | null | undefined, max = 48): string {
   return `${first.slice(0, max - 1).trimEnd()}…`;
 }
 
+function asNote(value: unknown): string | null {
+  const s = value == null ? "" : String(value).trim();
+  return s || null;
+}
+
+function labeledChunk(text: string, label: "Notes" | "Details"): string | null {
+  const re = new RegExp(
+    `(?:^|\\b)${label}:\\s*(.+?)(?=\\s*(?:Notes:|Details:|Last seen:|Please help|$))`,
+    "is",
+  );
+  const m = text.match(re);
+  return asNote(m?.[1]?.replace(/\s+/g, " "));
+}
+
+/**
+ * Resolve pet appearance notes vs last-seen details for structured facts.
+ * Prefers live pet columns; falls back to legacy "Notes:" / "Details:" in description.
+ */
+export function splitAlertNotes(opts: {
+  description?: unknown;
+  medicalNotes?: unknown;
+  lastSeenNotes?: unknown;
+}): { petNote: string | null; lastSeenNote: string | null } {
+  const raw = String(opts.description || "").trim();
+  const petNote = asNote(opts.medicalNotes) || labeledChunk(raw, "Notes");
+  const lastSeenNote = asNote(opts.lastSeenNotes) || labeledChunk(raw, "Details");
+  return { petNote, lastSeenNote };
+}
+
 /**
  * Strip auto-generated duplicates from older missing-alert descriptions
  * (species, "Last seen: …", trailing help line when we show structured UI).
@@ -17,6 +46,8 @@ export function cleanPostBody(
     locationText?: string | null;
     species?: string | null;
     breed?: string | null;
+    /** Extra phrases already shown as structured facts */
+    dropNotes?: Array<string | null | undefined>;
   } = {},
 ): string {
   let text = String(description || "").trim();
@@ -36,8 +67,9 @@ export function cleanPostBody(
       location ? `Last seen: ${location}.` : "",
       location ? `Last seen: ${location}` : "",
       location,
+      ...(opts.dropNotes || []),
     ]
-      .map((s) => s.trim().toLowerCase())
+      .map((s) => String(s || "").trim().toLowerCase())
       .filter(Boolean),
   );
 
@@ -68,6 +100,12 @@ export function cleanPostBody(
     out = out.replace(lead, "");
   }
   out = out.replace(/^(Notes|Details):\s*/i, "");
-  out = out.replace(/\bDetails:\s*/gi, "");
-  return out;
+  out = out.replace(/\b(?:Notes|Details):\s*/gi, "");
+  for (const note of opts.dropNotes || []) {
+    const n = String(note || "").trim();
+    if (!n) continue;
+    const esc = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`(?:^|\\s)${esc}\\.?(?=\\s|$)`, "gi"), " ");
+  }
+  return out.replace(/\s+/g, " ").trim();
 }

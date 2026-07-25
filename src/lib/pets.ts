@@ -21,14 +21,8 @@ export async function syncMissingPost(petId: number): Promise<void> {
 
   if (pet.status === "missing") {
     const title = `${String(pet.name)} is missing`;
-    // Keep description short — species/location render as structured fields on the post page.
-    const desc = [
-      pet.last_seen_notes ? String(pet.last_seen_notes).trim() : "",
-      pet.medical_notes ? String(pet.medical_notes).trim() : "",
-      "Please help us bring them home.",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    // Notes live on the pet row and render under Pet / Last seen on the post page.
+    const desc = "";
 
     const feedPhoto =
       pet.last_seen_media_type === "image" && pet.last_seen_media_path
