@@ -35,6 +35,7 @@ export function CreatePostForm({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [mediaLabel, setMediaLabel] = useState<string | null>(null);
   const [locationHint, setLocationHint] = useState<string | null>(null);
+  const [gpsBusy, setGpsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const alert = type === "found" || type === "missing";
@@ -59,17 +60,20 @@ export function CreatePostForm({
     }
   }
 
-  async function fillLocationFromGps() {
+  /** Get GPS before opening the camera — more reliable on Android than after capture. */
+  async function fillLocationFromGps(): Promise<boolean> {
     if (!navigator.geolocation) {
       setLocationHint("GPS not available — use Search or Use my location on the map.");
-      return;
+      return false;
     }
-    setLocationHint("Getting your location…");
+    setGpsBusy(true);
+    setLocationHint("Getting your location… Allow location, then the camera will open.");
     try {
       const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
-          timeout: 12000,
+          timeout: 15000,
+          maximumAge: 30000,
         });
       });
       const lat = pos.coords.latitude;
@@ -83,13 +87,26 @@ export function CreatePostForm({
       const data = await res.json();
       if (data.ok && data.results?.[0]?.label) {
         setLocationText(data.results[0].label);
-        setLocationHint("Location filled from your GPS after the photo.");
+        setLocationHint("Location ready — opening camera…");
       } else {
-        setLocationHint("Pin set from GPS — type an address if lookup found nothing.");
+        setLocationHint("GPS pin set — opening camera…");
       }
+      return true;
     } catch {
-      setLocationHint("Could not get GPS. Allow location, or use Use my location on the map.");
+      setLocationHint(
+        "Could not get GPS (allow Location for this site). Opening camera anyway — use Use my location after.",
+      );
+      return false;
+    } finally {
+      setGpsBusy(false);
     }
+  }
+
+  async function onTakePhotoClick() {
+    await fillLocationFromGps();
+    // Small delay so address/state paint before leaving to the camera app
+    await new Promise((r) => window.setTimeout(r, 150));
+    cameraRef.current?.click();
   }
 
   function onGalleryChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -102,7 +119,11 @@ export function CreatePostForm({
     const file = e.target.files?.[0];
     if (file && galleryRef.current) galleryRef.current.value = "";
     applyMedia(file);
-    if (file) void fillLocationFromGps();
+    if (file && locationText.trim()) {
+      setLocationHint("Photo added. Location was set from GPS before the camera.");
+    } else if (file) {
+      setLocationHint("Photo added. Tap Use my location on the map if the address is empty.");
+    }
   }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -176,14 +197,16 @@ export function CreatePostForm({
           <button
             type="button"
             className="btn btn-amber"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => void onTakePhotoClick()}
+            disabled={gpsBusy}
           >
-            Take photo
+            {gpsBusy ? "Getting location…" : "Take photo"}
           </button>
           <button
             type="button"
             className="btn btn-outline"
             onClick={() => galleryRef.current?.click()}
+            disabled={gpsBusy}
           >
             Choose from gallery
           </button>
@@ -206,8 +229,8 @@ export function CreatePostForm({
           onChange={onGalleryChange}
         />
         <span className="muted">
-          On phone, Take photo opens the camera and fills your GPS location when allowed. Photos ≤
-          5MB · Videos ≤ 20MB.
+          Take photo asks for GPS first (Allow), then opens the camera. Photos ≤ 5MB · Videos ≤
+          20MB.
         </span>
         {mediaLabel ? <p className="create-media-name">{mediaLabel}</p> : null}
         {previewUrl ? (
@@ -227,7 +250,7 @@ export function CreatePostForm({
         />
         <span className="muted">
           {locationHint ||
-            "Take photo auto-fills GPS, or search / Use my location / tap the map."}
+            "Take photo gets GPS first, then camera — or search / Use my location / tap the map."}
         </span>
       </label>
       <MapPicker
