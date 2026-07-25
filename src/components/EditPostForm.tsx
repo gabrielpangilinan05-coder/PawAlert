@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DeletePostButton } from "@/components/DeletePostButton";
 
 const MapPicker = dynamic(
   () => import("@/components/MapPicker").then((m) => m.MapPicker),
@@ -449,6 +450,7 @@ export function EditPostForm({
         <Link className="btn btn-outline" href={`/post/${postId}`}>
           Cancel
         </Link>
+        <DeletePostButton postId={postId} className="btn btn-danger" />
       </div>
     </form>
   );

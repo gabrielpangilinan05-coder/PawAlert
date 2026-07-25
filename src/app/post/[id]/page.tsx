@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { DeletePostButton } from "@/components/DeletePostButton";
 import { LikeCommentBar } from "@/components/LikeCommentBar";
 import { PostMediaGallery } from "@/components/PostMediaGallery";
 import { PostPhotoZoom } from "@/components/PostPhotoZoom";
@@ -184,6 +185,7 @@ export default async function PostPage({
               <Link className="btn btn-outline" href={`/post/${postId}/edit`}>
                 Edit post
               </Link>
+              <DeletePostButton postId={postId} />
             </div>
           ) : null}
         </div>

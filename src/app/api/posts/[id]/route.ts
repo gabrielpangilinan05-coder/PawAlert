@@ -4,12 +4,33 @@ import { getPool } from "@/lib/db";
 import { listPostMedia } from "@/lib/posts";
 import {
   deleteStoredMedia,
+  deleteStoredMediaMany,
   isAlertType,
   normalizeSpecies,
   saveMultipleMedia,
   type SavedMedia,
 } from "@/lib/upload";
 import { LIMITS, rateLimit, tooManyRequests } from "@/lib/rate-limit";
+
+type OwnedPost = { id: number; user_id: number | null; photo_path: string | null };
+
+async function loadOwnedPost(
+  postId: number,
+  userId: number,
+  isAdmin: boolean,
+): Promise<{ post: OwnedPost; pool: ReturnType<typeof getPool> } | NextResponse> {
+  const pool = getPool();
+  const [rows] = await pool.query(
+    `SELECT id, user_id, photo_path FROM posts WHERE id = ? LIMIT 1`,
+    [postId],
+  );
+  const post = (rows as OwnedPost[])[0];
+  if (!post) return NextResponse.json({ error: "Post not found." }, { status: 404 });
+  if (post.user_id !== userId && !isAdmin) {
+    return NextResponse.json({ error: "You can only manage your own posts." }, { status: 403 });
+  }
+  return { post, pool };
+}
 
 function collectMediaFiles(form: FormData): File[] {
   const files: File[] = [];
@@ -41,6 +62,56 @@ async function refreshPostCover(pool: ReturnType<typeof getPool>, postId: number
   await pool.execute(`UPDATE posts SET photo_path = NULL, media_type = NULL WHERE id = ?`, [
     postId,
   ]);
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Please log in." }, { status: 401 });
+  }
+
+  const limited = rateLimit(`postdel:u:${user.id}`, LIMITS.write);
+  if (!limited.ok) return tooManyRequests(limited.resetAt);
+
+  const { id } = await params;
+  const postId = Number(id);
+  if (!Number.isFinite(postId) || postId < 1) {
+    return NextResponse.json({ error: "Invalid post." }, { status: 400 });
+  }
+
+  try {
+    const owned = await loadOwnedPost(postId, user.id, user.role === "admin");
+    if (owned instanceof NextResponse) return owned;
+    const { post, pool } = owned;
+
+    const paths = new Set<string>();
+    if (post.photo_path) paths.add(post.photo_path);
+    try {
+      const [mediaRows] = await pool.query(
+        `SELECT file_path FROM post_media WHERE post_id = ?`,
+        [postId],
+      );
+      for (const row of mediaRows as { file_path: string }[]) {
+        if (row.file_path) paths.add(row.file_path);
+      }
+    } catch (err) {
+      if ((err as { code?: string }).code !== "ER_NO_SUCH_TABLE") throw err;
+    }
+
+    await pool.execute(`DELETE FROM posts WHERE id = ?`, [postId]);
+    await deleteStoredMediaMany(paths);
+
+    return NextResponse.json({ ok: true, deleted: true });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Could not delete post." },
+      { status: 400 },
+    );
+  }
 }
 
 export async function PATCH(
