@@ -200,22 +200,6 @@ export default async function PostPage({
             ) : null}
           </p>
 
-          {isMissing ? (
-            <p className="alert-urgent">
-              Missing — contact the poster if you have information.
-            </p>
-          ) : null}
-          {isFound ? (
-            <p className="pp-banner pp-banner--safe" style={{ marginTop: "0.35rem" }}>
-              Found alert — help reunite this pet with their owner.
-            </p>
-          ) : null}
-          {isResolved ? (
-            <p className="pp-banner pp-banner--safe" style={{ marginTop: "0.35rem" }}>
-              Reunited — this alert is closed.
-            </p>
-          ) : null}
-
           {facts.length > 0 ? (
             <dl className="alert-facts">
               {facts.map((f) => (
