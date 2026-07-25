@@ -76,7 +76,9 @@ function withinMonths(within?: string): number | null {
 }
 
 function isBadField(err: unknown): boolean {
-  return (err as { code?: string }).code === "ER_BAD_FIELD_ERROR";
+  const e = err as { code?: string; errno?: number; message?: string };
+  if (e.code === "ER_BAD_FIELD_ERROR" || e.errno === 1054) return true;
+  return /unknown column/i.test(String(e.message || ""));
 }
 
 /** Approx miles between two lat/lng points (Haversine), for SQL. */
@@ -90,7 +92,7 @@ const HAVERSINE_MILES = `(
   )
 )`;
 
-type SelectMode = "full" | "compat";
+type SelectMode = "full" | "compat" | "minimal";
 
 function feedSelect(mode: SelectMode): string {
   if (mode === "full") {
@@ -308,7 +310,8 @@ function postDetailSelect(mode: SelectMode): string {
       users.address_lng AS owner_address_lng
     `;
   }
-  return `
+  if (mode === "compat") {
+    return `
       posts.*,
       users.name AS author_name,
       NULL AS author_avatar_path,
@@ -321,27 +324,62 @@ function postDetailSelect(mode: SelectMode): string {
       pets.last_seen_at AS pet_last_seen_at,
       NULL AS pet_last_seen_lat,
       NULL AS pet_last_seen_lng,
-      pets.last_seen_media_path,
-      pets.last_seen_media_type,
-      NULL AS pet_show_phone,
-      NULL AS pet_show_email,
-      NULL AS pet_show_messenger,
-      NULL AS pet_show_address,
+      NULL AS last_seen_media_path,
+      NULL AS last_seen_media_type,
+      pets.show_phone AS pet_show_phone,
+      pets.show_email AS pet_show_email,
+      pets.show_messenger AS pet_show_messenger,
+      pets.show_address AS pet_show_address,
       NULL AS pet_home_lat,
       NULL AS pet_home_lng,
-      NULL AS owner_phone,
-      NULL AS owner_email,
-      NULL AS owner_messenger,
+      users.phone AS owner_phone,
+      users.email AS owner_email,
+      users.messenger AS owner_messenger,
       NULL AS owner_address_lat,
       NULL AS owner_address_lng
+    `;
+  }
+  // Absolute fallback for older schemas — core fields only.
+  return `
+      posts.id, posts.user_id, posts.pet_id, posts.type, posts.title, posts.description,
+      posts.species, posts.photo_path, posts.media_type, posts.location_text,
+      posts.contact_name, posts.contact_phone, posts.contact_email, posts.status,
+      posts.created_at, posts.updated_at,
+      users.name AS author_name,
+      NULL AS author_avatar_path,
+      pets.name AS pet_name,
+      pets.photo_path AS pet_photo_path,
+      pets.sex AS pet_sex,
+      pets.breed AS pet_breed,
+      pets.public_slug AS pet_slug,
+      pets.last_seen_text AS pet_last_seen_text,
+      pets.last_seen_at AS pet_last_seen_at,
+      NULL AS pet_last_seen_lat,
+      NULL AS pet_last_seen_lng,
+      NULL AS last_seen_media_path,
+      NULL AS last_seen_media_type,
+      pets.show_phone AS pet_show_phone,
+      pets.show_email AS pet_show_email,
+      pets.show_messenger AS pet_show_messenger,
+      pets.show_address AS pet_show_address,
+      NULL AS pet_home_lat,
+      NULL AS pet_home_lng,
+      users.phone AS owner_phone,
+      users.email AS owner_email,
+      users.messenger AS owner_messenger,
+      NULL AS owner_address_lat,
+      NULL AS owner_address_lng,
+      NULL AS hidden_at,
+      NULL AS hidden_reason
     `;
 }
 
 export async function getPostById(id: number, opts?: { includeHidden?: boolean }) {
   const pool = getPool();
-  const hiddenClause = opts?.includeHidden ? "" : "AND posts.hidden_at IS NULL";
 
-  async function run(mode: SelectMode) {
+  async function run(mode: SelectMode, withHiddenFilter: boolean) {
+    const hiddenClause =
+      !opts?.includeHidden && withHiddenFilter ? "AND posts.hidden_at IS NULL" : "";
     const [rows] = await pool.query(
       `SELECT
         ${postDetailSelect(mode)}
@@ -353,15 +391,29 @@ export async function getPostById(id: number, opts?: { includeHidden?: boolean }
       [id],
     );
     const list = rows as Record<string, unknown>[];
-    return list[0] ?? null;
+    const row = list[0] ?? null;
+    if (row && !opts?.includeHidden && row.hidden_at) return null;
+    return row;
   }
 
+  const modes: SelectMode[] = ["full", "compat", "minimal"];
+  let lastErr: unknown;
+  for (const mode of modes) {
+    try {
+      return await run(mode, true);
+    } catch (err) {
+      lastErr = err;
+      if (!isBadField(err)) throw err;
+      console.warn(`[post] Missing DB columns — retrying with ${mode === "full" ? "compat" : "minimal"} query.`);
+    }
+  }
+
+  // hidden_at column itself may be missing
   try {
-    return await run("full");
+    return await run("minimal", false);
   } catch (err) {
-    if (!isBadField(err)) throw err;
-    console.warn("[post] Missing DB columns — using compat query.");
-    return await run("compat");
+    lastErr = err;
+    throw lastErr;
   }
 }
 
